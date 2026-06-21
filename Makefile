@@ -152,32 +152,50 @@ build: check-deps ## Extract ISO, inject kickstart + SSH keys, rebuild
 	@echo "To write to USB, run:  make flash DEV=/dev/sdX"
 	@echo "  (identify your USB device first with: lsblk -d -o NAME,SIZE,MODEL,TRAN)"
 
-flash: ## Write ISO to USB drive (requires DEV=/dev/sdX)
+flash: ## Write ISO to USB drive (requires DEV=/dev/sdX) — DESTRUCTIVE
 ifndef DEV
 	@echo "ERROR: Specify the USB device."
 	@echo ""
 	@echo "1. Identify your USB drive:"
-	@echo "   lsblk -d -o NAME,SIZE,MODEL,TRAN | grep usb"
+	@echo "   lsblk -d -o NAME,SIZE,MODEL,TRAN"
 	@echo ""
 	@echo "2. Then run:"
 	@echo "   make flash DEV=/dev/sdX"
-	@echo ""
-	@echo "WARNING: This will ERASE the target device. Double-check the device name."
 	@exit 1
 endif
 	@if [ ! -f "$(ISO_OUT)" ]; then echo "ERROR: $(ISO_OUT) not found. Run 'make build' first."; exit 1; fi
 	@if [ ! -b "$(DEV)" ]; then echo "ERROR: $(DEV) is not a block device."; exit 1; fi
-	@echo "=== Writing $(ISO_OUT) to $(DEV) ==="
-	@echo "Device info:"
-	@lsblk -d -o NAME,SIZE,MODEL,TRAN $(DEV)
 	@echo ""
-	@read -p "This will ERASE $(DEV). Type 'yes' to continue: " confirm; \
-	if [ "$$confirm" != "yes" ]; then echo "Aborted."; exit 1; fi
+	@echo "============================================================"
+	@echo "  THIS WILL PERMANENTLY ERASE ALL DATA ON $(DEV)"
+	@echo "============================================================"
+	@echo ""
+	@echo "  Device:  $(DEV)"
+	@lsblk -d -o NAME,SIZE,MODEL,TRAN $(DEV) | sed 's/^/  /'
+	@echo ""
+	@echo "  Existing partitions on $(DEV):"
+	@lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINT $(DEV) | sed 's/^/  /'
+	@echo ""
+	@echo "  ISO:     $(ISO_OUT) ($$(du -h $(ISO_OUT) | cut -f1))"
+	@echo ""
+	@echo "  To confirm, type the FULL device path (e.g. /dev/sdb):"
+	@read -p "  > " confirm; \
+	if [ "$$confirm" != "$(DEV)" ]; then echo "Aborted. You typed '$$confirm' but the target is '$(DEV)'."; exit 1; fi
+	@echo ""
 	sudo dd if=$(ISO_OUT) of=$(DEV) bs=4M status=progress oflag=sync
 	sync
 	sudo eject $(DEV) || true
 	@echo ""
-	@echo "=== Done. USB drive ejected. Safe to remove. ==="
+	@echo "=== Done. USB drive ejected. Safe to remove. ===
+
+eject: ## Safely eject a USB device (requires DEV=/dev/sdX)
+ifndef DEV
+	@echo "Usage: make eject DEV=/dev/sdX"
+	@exit 1
+endif
+	sync
+	sudo eject $(DEV) || sudo udisksctl power-off -b $(DEV) || true
+	@echo "$(DEV) ejected. Safe to remove."
 
 clean: ## Remove build artifacts
 	rm -rf $(BUILD_DIR)
