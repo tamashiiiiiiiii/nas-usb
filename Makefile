@@ -129,40 +129,21 @@ build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 	fi
 	@# Step 5: Rebuild ISO with xorriso (BIOS + UEFI hybrid)
 	@echo "[5/6] Rebuilding ISO..."
-	@if [ -d $(WORK_DIR)/isolinux ]; then \
-		echo "  Mode: isolinux + EFI (netinstall)"; \
-		xorriso -as mkisofs \
-			-V "Fedora-Tanoki-$(FEDORA_VER)" \
-			-o $(ISO_OUT) \
-			-b isolinux/isolinux.bin \
-			-c isolinux/boot.cat \
-			-no-emul-boot \
-			-boot-load-size 4 \
-			-boot-info-table \
-			-eltorito-alt-boot \
-			-e images/efiboot.img \
-			-no-emul-boot \
-			-isohybrid-mbr /usr/share/syslinux/isohdpfx.bin \
-			-isohybrid-gpt-basdat \
-			$(WORK_DIR); \
-	else \
-		echo "  Mode: GRUB2 hybrid (live)"; \
-		xorriso -as mkisofs \
-			-V "Fedora-WS-Live-44" \
-			-o $(ISO_OUT) \
-			-b boot/x86_64/loader/eltorito.img \
-			-no-emul-boot \
-			-boot-load-size 4 \
-			-boot-info-table \
-			--grub2-boot-info \
-			--grub2-mbr $(WORK_DIR)/boot/grub2/i386-pc/boot_hybrid.img \
-			-eltorito-alt-boot \
-			-e --interval:appended_partition_2:all:: \
-			-no-emul-boot \
-			-isohybrid-gpt-basdat \
-			-append_partition 2 C12A7328-F81F-11D2-BA4B-00A0C93EC93B $(WORK_DIR)/boot/x86_64/loader/eltorito.img \
-			$(WORK_DIR); \
-	fi
+	xorriso -as mkisofs \
+		-V "Fedora-Tanoki-$(FEDORA_VER)" \
+		-o $(ISO_OUT) \
+		-b images/eltorito.img \
+		-no-emul-boot \
+		-boot-load-size 4 \
+		-boot-info-table \
+		--grub2-boot-info \
+		--grub2-mbr $(WORK_DIR)/boot/grub2/i386-pc/boot_hybrid.img \
+		-eltorito-alt-boot \
+		-e --interval:appended_partition_2:all:: \
+		-no-emul-boot \
+		-isohybrid-gpt-basdat \
+		-append_partition 2 C12A7328-F81F-11D2-BA4B-00A0C93EC93B $(WORK_DIR)/images/eltorito.img \
+		$(WORK_DIR)
 	@# Step 6: Implant MD5 checksum
 	@echo "[6/6] Implanting ISO checksum..."
 	implantisomd5 $(ISO_OUT)
