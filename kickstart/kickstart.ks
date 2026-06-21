@@ -216,6 +216,9 @@ if [ -d /run/install/repo/ssh-keys ]; then
     for f in /root/.ssh/*.pub; do [ -f "$f" ] && chmod 644 "$f"; done
 fi
 
+# Install all ansible packages (wildcard)
+dnf install -y ansible-* || true
+
 # Clone nas-ansible repo
 git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || \
     git clone https://github.com/tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || true
