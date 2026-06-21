@@ -17,10 +17,10 @@ SHELL := /bin/bash
 FEDORA_VER := 44
 FEDORA_REL := 1.7
 ARCH := x86_64
-ISO_NAME := Fedora-Workstation-Live-$(FEDORA_VER)-$(FEDORA_REL).$(ARCH).iso
-CHECKSUM_NAME := Fedora-Workstation-$(FEDORA_VER)-$(FEDORA_REL)-$(ARCH)-CHECKSUM
-ISO_SHA256 := 1620295f6a00c27c3208f0c00b8ece4eab1ec69b9002152d97488bf26a426ddf
-BASE_URL := https://download.fedoraproject.org/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/$(ARCH)/iso
+ISO_NAME := Fedora-Everything-netinst-$(ARCH)-$(FEDORA_VER)-$(FEDORA_REL).iso
+CHECKSUM_NAME := Fedora-Everything-$(FEDORA_VER)-$(FEDORA_REL)-$(ARCH)-CHECKSUM
+ISO_SHA256 := bd285201494dd0ba09b54d05ac707de1401668b8512a573edb5922dcf9d7067e
+BASE_URL := https://download.fedoraproject.org/pub/fedora/linux/releases/$(FEDORA_VER)/Everything/$(ARCH)/iso
 OUTPUT_ISO := Fedora-$(FEDORA_VER)-Tanoki-$(ARCH).iso
 
 ISO_DIR := iso
@@ -61,7 +61,11 @@ validate-ks: ## Validate the kickstart file syntax
 check-iso: ## Verify ISO integrity with sha256sum
 	@if [ ! -f "$(ISO_SRC)" ]; then echo "ERROR: $(ISO_SRC) not found. Run 'make download' first."; exit 1; fi
 	@echo "Checking ISO: $(ISO_SRC)"
-	@echo "$(ISO_SHA256)  $(ISO_SRC)" | sha256sum -c -
+	@if [ -f "$(ISO_DIR)/$(CHECKSUM_NAME)" ]; then \
+		cd $(ISO_DIR) && sha256sum -c --ignore-missing $(CHECKSUM_NAME); \
+	else \
+		echo "$(ISO_SHA256)  $(ISO_SRC)" | sha256sum -c -; \
+	fi
 
 download: ## Download the Fedora Workstation ISO (parallel multi-mirror)
 	@echo "Downloading Fedora Workstation $(FEDORA_VER)-$(FEDORA_REL)..."
@@ -69,16 +73,16 @@ download: ## Download the Fedora Workstation ISO (parallel multi-mirror)
 	@echo "Using aria2c (parallel download from 10 mirrors across Western Europe)..."
 	cd $(ISO_DIR) && aria2c -x 10 -s 10 -j 10 -k 1M --file-allocation=none --auto-file-renaming=false \
 		-o $(ISO_NAME) \
-		"https://mirror.23m.com/fedora/linux/releases/$(FEDORA_VER)/Workstation/$(ARCH)/iso/$(ISO_NAME)" \
-		"https://mirror.i3d.net/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/$(ARCH)/iso/$(ISO_NAME)" \
-		"https://fedora.mirrorservice.org/fedora/linux/releases/$(FEDORA_VER)/Workstation/$(ARCH)/iso/$(ISO_NAME)" \
-		"https://mirror.in2p3.fr/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/$(ARCH)/iso/$(ISO_NAME)" \
-		"https://www.nic.funet.fi/pub/mirrors/fedora.redhat.com/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/$(ARCH)/iso/$(ISO_NAME)" \
-		"https://mirror.netsite.dk/fedora/linux/releases/$(FEDORA_VER)/Workstation/$(ARCH)/iso/$(ISO_NAME)" \
-		"https://ftp-stud.hs-esslingen.de/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/$(ARCH)/iso/$(ISO_NAME)" \
-		"https://mirror.init7.net/fedora/fedora/linux/releases/$(FEDORA_VER)/Workstation/$(ARCH)/iso/$(ISO_NAME)" \
-		"https://mirror.imt-systems.com/fedora/linux/releases/$(FEDORA_VER)/Workstation/$(ARCH)/iso/$(ISO_NAME)" \
-		"https://mirror.bahnhof.net/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/$(ARCH)/iso/$(ISO_NAME)"
+		"https://mirror.23m.com/fedora/linux/releases/$(FEDORA_VER)/Everything/$(ARCH)/iso/$(ISO_NAME)" \
+		"https://mirror.i3d.net/pub/fedora/linux/releases/$(FEDORA_VER)/Everything/$(ARCH)/iso/$(ISO_NAME)" \
+		"https://fedora.mirrorservice.org/fedora/linux/releases/$(FEDORA_VER)/Everything/$(ARCH)/iso/$(ISO_NAME)" \
+		"https://mirror.in2p3.fr/pub/fedora/linux/releases/$(FEDORA_VER)/Everything/$(ARCH)/iso/$(ISO_NAME)" \
+		"https://www.nic.funet.fi/pub/mirrors/fedora.redhat.com/pub/fedora/linux/releases/$(FEDORA_VER)/Everything/$(ARCH)/iso/$(ISO_NAME)" \
+		"https://mirror.netsite.dk/fedora/linux/releases/$(FEDORA_VER)/Everything/$(ARCH)/iso/$(ISO_NAME)" \
+		"https://ftp-stud.hs-esslingen.de/pub/fedora/linux/releases/$(FEDORA_VER)/Everything/$(ARCH)/iso/$(ISO_NAME)" \
+		"https://mirror.init7.net/fedora/fedora/linux/releases/$(FEDORA_VER)/Everything/$(ARCH)/iso/$(ISO_NAME)" \
+		"https://mirror.imt-systems.com/fedora/linux/releases/$(FEDORA_VER)/Everything/$(ARCH)/iso/$(ISO_NAME)" \
+		"https://mirror.bahnhof.net/pub/fedora/linux/releases/$(FEDORA_VER)/Everything/$(ARCH)/iso/$(ISO_NAME)"
 	curl -L -o $(ISO_DIR)/$(CHECKSUM_NAME) "$(BASE_URL)/$(CHECKSUM_NAME)"
 	@echo "Download complete. Run 'make check-iso' to verify."
 
@@ -109,28 +113,60 @@ build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 	fi
 	@# Step 4: Patch boot configs to auto-load kickstart
 	@echo "[4/6] Patching boot configuration..."
-	@# Patch GRUB — add inst.ks to linux lines that don't already have it
+	@# Patch isolinux (BIOS boot) — netinstall ISOs
+	@if [ -f $(WORK_DIR)/isolinux/isolinux.cfg ]; then \
+		sed -i '/inst\.ks/!s|append |append inst.ks=cdrom:/ks.cfg |' $(WORK_DIR)/isolinux/isolinux.cfg; \
+		echo "  Patched: isolinux/isolinux.cfg"; \
+	fi
+	@if [ -f $(WORK_DIR)/isolinux/grub.conf ]; then \
+		sed -i '/inst\.ks/!s|append |append inst.ks=cdrom:/ks.cfg |' $(WORK_DIR)/isolinux/grub.conf; \
+		echo "  Patched: isolinux/grub.conf"; \
+	fi
+	@# Patch GRUB (UEFI boot)
+	@if [ -f $(WORK_DIR)/EFI/BOOT/grub.cfg ]; then \
+		sed -i '/inst\.ks/!{/^\tlinux/s|$$| inst.ks=cdrom:/ks.cfg|}' $(WORK_DIR)/EFI/BOOT/grub.cfg; \
+		echo "  Patched: EFI/BOOT/grub.cfg"; \
+	fi
 	@if [ -f $(WORK_DIR)/boot/grub2/grub.cfg ]; then \
-		sed -i '/inst\.ks/!{/^\tlinux /s|$$| inst.ks=cdrom:/ks.cfg|}' $(WORK_DIR)/boot/grub2/grub.cfg; \
+		sed -i '/inst\.ks/!{/^\tlinux/s|$$| inst.ks=cdrom:/ks.cfg|}' $(WORK_DIR)/boot/grub2/grub.cfg; \
 		echo "  Patched: boot/grub2/grub.cfg"; \
 	fi
-	@# Step 5: Rebuild ISO with xorriso (BIOS + UEFI hybrid, matching Fedora layout)
+	@# Step 5: Rebuild ISO with xorriso (BIOS + UEFI hybrid)
 	@echo "[5/6] Rebuilding ISO..."
-	xorriso -as mkisofs \
-		-V "Fedora-WS-Live-44" \
-		-o $(ISO_OUT) \
-		-b boot/x86_64/loader/eltorito.img \
-		-no-emul-boot \
-		-boot-load-size 4 \
-		-boot-info-table \
-		--grub2-boot-info \
-		--grub2-mbr $(WORK_DIR)/boot/grub2/i386-pc/boot_hybrid.img \
-		-eltorito-alt-boot \
-		-e --interval:appended_partition_2:all:: \
-		-no-emul-boot \
-		-isohybrid-gpt-basdat \
-		-append_partition 2 C12A7328-F81F-11D2-BA4B-00A0C93EC93B $(WORK_DIR)/boot/x86_64/loader/eltorito.img \
-		$(WORK_DIR)
+	@if [ -d $(WORK_DIR)/isolinux ]; then \
+		echo "  Mode: isolinux + EFI (netinstall)"; \
+		xorriso -as mkisofs \
+			-V "Fedora-Tanoki-$(FEDORA_VER)" \
+			-o $(ISO_OUT) \
+			-b isolinux/isolinux.bin \
+			-c isolinux/boot.cat \
+			-no-emul-boot \
+			-boot-load-size 4 \
+			-boot-info-table \
+			-eltorito-alt-boot \
+			-e images/efiboot.img \
+			-no-emul-boot \
+			-isohybrid-mbr /usr/share/syslinux/isohdpfx.bin \
+			-isohybrid-gpt-basdat \
+			$(WORK_DIR); \
+	else \
+		echo "  Mode: GRUB2 hybrid (live)"; \
+		xorriso -as mkisofs \
+			-V "Fedora-WS-Live-44" \
+			-o $(ISO_OUT) \
+			-b boot/x86_64/loader/eltorito.img \
+			-no-emul-boot \
+			-boot-load-size 4 \
+			-boot-info-table \
+			--grub2-boot-info \
+			--grub2-mbr $(WORK_DIR)/boot/grub2/i386-pc/boot_hybrid.img \
+			-eltorito-alt-boot \
+			-e --interval:appended_partition_2:all:: \
+			-no-emul-boot \
+			-isohybrid-gpt-basdat \
+			-append_partition 2 C12A7328-F81F-11D2-BA4B-00A0C93EC93B $(WORK_DIR)/boot/x86_64/loader/eltorito.img \
+			$(WORK_DIR); \
+	fi
 	@# Step 6: Implant MD5 checksum
 	@echo "[6/6] Implanting ISO checksum..."
 	implantisomd5 $(ISO_OUT)
