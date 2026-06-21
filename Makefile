@@ -118,19 +118,19 @@ build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 		sed -i '/inst\.ks/!s|append |append inst.ks=cdrom:/ks.cfg |' $(WORK_DIR)/isolinux/grub.conf; \
 		echo "  Patched: isolinux/grub.conf"; \
 	fi
-	@# Patch GRUB (UEFI boot)
+	@# Patch GRUB — add inst.ks to all linux lines that load vmlinuz
 	@if [ -f $(WORK_DIR)/EFI/BOOT/grub.cfg ]; then \
-		sed -i '/inst\.ks/!{/^\tlinux/s|$$| inst.ks=cdrom:/ks.cfg|}' $(WORK_DIR)/EFI/BOOT/grub.cfg; \
+		sed -i '/inst\.ks/!{/linux.*vmlinuz/s|quiet|inst.ks=cdrom:/ks.cfg quiet|}' $(WORK_DIR)/EFI/BOOT/grub.cfg; \
 		echo "  Patched: EFI/BOOT/grub.cfg"; \
 	fi
 	@if [ -f $(WORK_DIR)/boot/grub2/grub.cfg ]; then \
-		sed -i '/inst\.ks/!{/^\tlinux/s|$$| inst.ks=cdrom:/ks.cfg|}' $(WORK_DIR)/boot/grub2/grub.cfg; \
+		sed -i '/inst\.ks/!{/linux.*vmlinuz/s|quiet|inst.ks=cdrom:/ks.cfg quiet|}' $(WORK_DIR)/boot/grub2/grub.cfg; \
 		echo "  Patched: boot/grub2/grub.cfg"; \
 	fi
 	@# Step 5: Rebuild ISO with xorriso (BIOS + UEFI hybrid)
 	@echo "[5/6] Rebuilding ISO..."
 	xorriso -as mkisofs \
-		-V "Fedora-Tanoki-$(FEDORA_VER)" \
+		-V "$$(xorriso -indev $(ISO_SRC) 2>&1 | grep 'Volume id' | sed "s/.*'//;s/'//")" \
 		-o $(ISO_OUT) \
 		-b images/eltorito.img \
 		-no-emul-boot \

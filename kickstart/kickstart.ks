@@ -2,6 +2,7 @@
 # Automated install to /dev/sda with custom partitioning
 
 text
+url --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-44&arch=x86_64
 lang pt_PT.UTF-8
 keyboard --xlayouts='pt'
 timezone Europe/Lisbon --utc
