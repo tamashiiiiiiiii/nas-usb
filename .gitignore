@@ -3,7 +3,3 @@
 *-CHECKSUM
 build/
 iso/
-ssh-keys/id_*
-ssh-keys/known_hosts
-ssh-keys/authorized_keys
-!ssh-keys/.gitkeep

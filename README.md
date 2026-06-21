@@ -1,10 +1,10 @@
 # Quickstart
 
 ```bash
-cp ~/.ssh/id_* ssh-keys/      # copy your SSH keys (needed for git clone in post-install)
-make download                  # fetch Fedora 44 ISO into iso/ (parallel multi-mirror)
+make setup                     # install build tools (first time only)
+make download                  # fetch Fedora 44 netinstall ISO
 make check-iso                 # verify checksum
-make build                     # build custom ISO into build/
+make build                     # build custom ISO (embeds ~/.ssh/ keys automatically)
 ```
 
 The output ISO (`build/nas-workstation.iso`) is a bootable Fedora installer that auto-partitions `/dev/sda`, installs a full workstation with 25+ desktop/development groups, and runs post-install scripts for AI coding tools.
@@ -15,23 +15,15 @@ The output ISO (`build/nas-workstation.iso`) is a bootable Fedora installer that
 nas-usb/
 ├── kickstart/           # Kickstart configuration files
 │   └── kickstart.ks     # Main kickstart (partitioning, packages, post-install)
-├── ssh-keys/            # SSH keys embedded into ISO (gitignored, you provide these)
-├── iso/                 # Downloaded source ISOs (gitignored)
-├── build/               # Build output and scratch (gitignored)
+├── iso/                 # Downloaded source ISO (gitignored)
+├── build/               # Build output (gitignored)
 ├── Makefile             # Build automation
 └── README.md
 ```
 
 ## SSH Keys
 
-Place your SSH key pair in `ssh-keys/` before building:
-
-```bash
-cp ~/.ssh/id_ed25519 ssh-keys/
-cp ~/.ssh/id_ed25519.pub ssh-keys/
-```
-
-These are embedded into the ISO and copied to `/root/.ssh/` (mode 600) during install. This allows the `%post` script to `git clone` the nas-ansible repo via SSH. The keys are gitignored and never committed.
+The build automatically copies `~/.ssh/id_*` and `known_hosts` into the ISO. During install, the kickstart `%post` copies them to `/root/.ssh/` (mode 600), enabling `git clone` of the nas-ansible repo via SSH. No manual key copying needed.
 
 ## Make Targets
 

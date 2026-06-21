@@ -25,7 +25,7 @@ OUTPUT_ISO := tanoki.iso
 
 ISO_DIR := iso
 KS_DIR := kickstart
-SSH_DIR := ssh-keys
+SSH_DIR := $(HOME)/.ssh
 BUILD_DIR := build
 WORK_DIR := $(BUILD_DIR)/iso-root
 
@@ -98,14 +98,14 @@ build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 	@echo "[2/6] Injecting kickstart..."
 	cp $(KS_FILE) $(WORK_DIR)/ks.cfg
 	@# Step 3: Copy SSH keys into ISO
-	@echo "[3/6] Embedding SSH keys..."
+	@echo "[3/6] Embedding SSH keys from ~/.ssh/..."
 	mkdir -p $(WORK_DIR)/ssh-keys
-	@if [ -d "$(SSH_DIR)" ] && [ "$$(ls -A $(SSH_DIR) 2>/dev/null | grep -v .gitkeep)" ]; then \
-		cp -a $(SSH_DIR)/* $(WORK_DIR)/ssh-keys/ 2>/dev/null; \
-		rm -f $(WORK_DIR)/ssh-keys/.gitkeep; \
+	@if [ -d "$(SSH_DIR)" ] && ls $(SSH_DIR)/id_* >/dev/null 2>&1; then \
+		cp $(SSH_DIR)/id_* $(WORK_DIR)/ssh-keys/; \
+		cp $(SSH_DIR)/known_hosts $(WORK_DIR)/ssh-keys/ 2>/dev/null || true; \
 		echo "  Copied: $$(ls $(WORK_DIR)/ssh-keys/)"; \
 	else \
-		echo "  WARNING: No SSH keys found in $(SSH_DIR)/. Git clone in %%post will use HTTPS fallback."; \
+		echo "  WARNING: No SSH keys found in ~/.ssh/. Git clone in %%post will use HTTPS fallback."; \
 	fi
 	@# Step 4: Patch boot configs to auto-load kickstart
 	@echo "[4/6] Patching boot configuration..."
