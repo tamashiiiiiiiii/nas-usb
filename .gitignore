@@ -1,4 +1,4 @@
-*.iso
-*.sha256
-*-CHECKSUM
-scratch/
+iso/*.iso
+iso/*.aria2
+iso/*-CHECKSUM
+build/

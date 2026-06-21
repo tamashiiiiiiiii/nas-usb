@@ -1,27 +1,40 @@
 # Quickstart
 
 ```bash
-make download        # fetch Fedora 44 Workstation ISO
+make download        # fetch Fedora 44 Workstation ISO into iso/
 make check-iso       # verify checksum
-make build           # build custom ISO with kickstart
+make build           # build custom ISO into build/
 ```
 
-The output ISO (`nas-workstation.iso`) is a bootable installer that auto-partitions `/dev/sda` and installs a full workstation environment.
+The output ISO (`build/nas-workstation.iso`) is a bootable installer that auto-partitions `/dev/sda` and installs a full workstation environment.
+
+## Project Structure
+
+```
+nas-usb/
+├── kickstart/           # Kickstart configuration files
+│   └── kickstart.ks     # Main kickstart (partitioning, packages, post-install)
+├── iso/                 # Downloaded source ISOs (gitignored)
+├── build/               # Build output and scratch (gitignored)
+├── Makefile             # Build automation
+└── README.md
+```
 
 ## Make Targets
 
 | Target | Description |
 |---|---|
 | `make help` | Show available targets |
-| `make download` | Download Fedora Workstation 44 ISO |
+| `make download` | Download Fedora 44 ISO (parallel multi-mirror via aria2) |
 | `make check-iso` | Verify ISO checksum |
 | `make validate-ks` | Validate kickstart syntax |
 | `make build` | Build the custom ISO |
 | `make clean` | Remove build artifacts |
+| `make clean-all` | Remove build artifacts and downloaded ISOs |
 
 ## Kickstart Configuration
 
-The `kickstart.ks` file defines the automated install:
+The `kickstart/kickstart.ks` file defines the automated install:
 
 ### Disk Layout (`/dev/sda`)
 
@@ -45,13 +58,6 @@ Installs 25+ desktop and development groups including KDE, COSMIC, Budgie, MATE,
 ### Requirements
 
 - `livecd-tools` and `pykickstart` (included in kickstart package list)
+- `aria2` (auto-installed by Makefile if missing)
 - Root access for `livemedia-creator`
 - ~10GB free space for build
-
-## Files
-
-| File | Purpose |
-|---|---|
-| `kickstart.ks` | Fedora kickstart configuration |
-| `Makefile` | Build automation |
-| `.gitignore` | Excludes ISOs and scratch from git |

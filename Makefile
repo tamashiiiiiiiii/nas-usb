@@ -1,25 +1,32 @@
 # Makefile for building a custom Fedora ISO via kickstart
 #
-# Usage:
-#   1. Download a Fedora Workstation Live ISO into this directory
-#   2. make build
-#   3. make check-iso
+# Project structure:
+#   kickstart/   - Kickstart configuration files
+#   iso/         - Downloaded source ISOs (gitignored)
+#   build/       - Build artifacts and scratch (gitignored)
 #
-# Requirements: livecd-tools, pykickstart, genisoimage/xorriso
+# Usage:
+#   make download    # fetch Fedora ISO into iso/
+#   make check-iso   # verify checksum
+#   make build       # build custom ISO into build/
+#
+# Requirements: livecd-tools, pykickstart
 
 SHELL := /bin/bash
-
-# Auto-detect the source ISO (first .iso file that isn't our output)
-ISO_SRC := $(shell ls -1 Fedora-*.iso 2>/dev/null | head -1)
-ISO_OUT := nas-workstation.iso
-KS_FILE := kickstart.ks
-SCRATCH := scratch
 
 FEDORA_VER := 44
 FEDORA_REL := 1.7
 ISO_NAME := Fedora-Workstation-Live-$(FEDORA_VER)-$(FEDORA_REL).x86_64.iso
 CHECKSUM_NAME := Fedora-Workstation-$(FEDORA_VER)-$(FEDORA_REL)-x86_64-CHECKSUM
 BASE_URL := https://download.fedoraproject.org/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso
+
+ISO_DIR := iso
+KS_DIR := kickstart
+BUILD_DIR := build
+
+ISO_SRC := $(ISO_DIR)/$(ISO_NAME)
+ISO_OUT := $(BUILD_DIR)/nas-workstation.iso
+KS_FILE := $(KS_DIR)/kickstart.ks
 
 .PHONY: build clean check-iso validate-ks help download
 
@@ -33,44 +40,48 @@ validate-ks: ## Validate the kickstart file syntax
 	@echo "Kickstart is valid."
 
 check-iso: ## Verify ISO integrity with sha256sum
-	@if [ -z "$(ISO_SRC)" ]; then echo "ERROR: No Fedora ISO found. Download one first."; exit 1; fi
+	@if [ ! -f "$(ISO_SRC)" ]; then echo "ERROR: $(ISO_SRC) not found. Run 'make download' first."; exit 1; fi
 	@echo "Checking ISO: $(ISO_SRC)"
-	@CHECKSUM_FILE=$$(ls -1 *-CHECKSUM 2>/dev/null | head -1); \
+	@CHECKSUM_FILE=$$(ls -1 $(ISO_DIR)/*-CHECKSUM 2>/dev/null | head -1); \
 	if [ -n "$$CHECKSUM_FILE" ]; then \
-		sha256sum -c --ignore-missing "$$CHECKSUM_FILE"; \
+		cd $(ISO_DIR) && sha256sum -c --ignore-missing "$$(basename $$CHECKSUM_FILE)"; \
 	else \
 		echo "No CHECKSUM file found. Computing checksum:"; \
 		sha256sum "$(ISO_SRC)"; \
 	fi
 
 build: validate-ks ## Build the custom ISO from kickstart + source ISO
-	@if [ -z "$(ISO_SRC)" ]; then echo "ERROR: No Fedora ISO found. Download one first."; exit 1; fi
+	@if [ ! -f "$(ISO_SRC)" ]; then echo "ERROR: $(ISO_SRC) not found. Run 'make download' first."; exit 1; fi
 	@echo "Building custom ISO from $(ISO_SRC) with $(KS_FILE)..."
-	@mkdir -p $(SCRATCH)
+	@mkdir -p $(BUILD_DIR)/scratch
 	sudo livemedia-creator \
 		--make-iso \
 		--iso=$(ISO_SRC) \
 		--ks=$(KS_FILE) \
-		--resultdir=$(SCRATCH)/result \
-		--tmp=$(SCRATCH)/tmp \
-		--logfile=$(SCRATCH)/build.log \
+		--resultdir=$(BUILD_DIR)/scratch/result \
+		--tmp=$(BUILD_DIR)/scratch/tmp \
+		--logfile=$(BUILD_DIR)/build.log \
 		--project="NAS Workstation" \
-		--releasever=44 \
+		--releasever=$(FEDORA_VER) \
 		--volid="NAS-WS"
-	@if [ -f $(SCRATCH)/result/images/boot.iso ]; then \
-		mv $(SCRATCH)/result/images/boot.iso $(ISO_OUT); \
+	@if [ -f $(BUILD_DIR)/scratch/result/images/boot.iso ]; then \
+		mv $(BUILD_DIR)/scratch/result/images/boot.iso $(ISO_OUT); \
 		echo "Built: $(ISO_OUT) ($$(du -h $(ISO_OUT) | cut -f1))"; \
 	else \
-		echo "ERROR: Build failed. Check $(SCRATCH)/build.log"; \
+		echo "ERROR: Build failed. Check $(BUILD_DIR)/build.log"; \
 		exit 1; \
 	fi
 
-clean: ## Remove build artifacts and scratch directory
-	rm -rf $(SCRATCH)
+clean: ## Remove build artifacts
+	rm -rf $(BUILD_DIR)/scratch $(BUILD_DIR)/build.log
 	rm -f $(ISO_OUT)
 	@echo "Cleaned."
 
-download: ## Download the Fedora Workstation ISO (uses aria2 if available for speed)
+clean-all: clean ## Remove build artifacts and downloaded ISOs
+	rm -f $(ISO_DIR)/*.iso $(ISO_DIR)/*.aria2 $(ISO_DIR)/*-CHECKSUM
+	@echo "Cleaned all."
+
+download: ## Download the Fedora Workstation ISO (parallel multi-mirror)
 	@echo "Downloading Fedora Workstation $(FEDORA_VER)-$(FEDORA_REL)..."
 	@if ! command -v aria2c >/dev/null 2>&1; then \
 		echo "Installing aria2..."; \
@@ -79,8 +90,9 @@ download: ## Download the Fedora Workstation ISO (uses aria2 if available for sp
 		elif command -v pacman >/dev/null 2>&1; then sudo pacman -S --noconfirm aria2; \
 		else echo "ERROR: Could not install aria2. Install it manually."; exit 1; fi; \
 	fi
+	@mkdir -p $(ISO_DIR)
 	@echo "Using aria2c (parallel download from 10 mirrors across Western Europe)..."
-	aria2c -x 10 -s 10 -j 10 -k 1M --file-allocation=none --auto-file-renaming=false \
+	cd $(ISO_DIR) && aria2c -x 10 -s 10 -j 10 -k 1M --file-allocation=none --auto-file-renaming=false \
 		-o $(ISO_NAME) \
 		"https://mirror.23m.com/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
 		"https://mirror.i3d.net/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
@@ -92,5 +104,5 @@ download: ## Download the Fedora Workstation ISO (uses aria2 if available for sp
 		"https://mirror.init7.net/fedora/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
 		"https://mirror.imt-systems.com/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
 		"https://mirror.bahnhof.net/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)"
-	curl -L -o $(CHECKSUM_NAME) "$(BASE_URL)/$(CHECKSUM_NAME)"
+	curl -L -o $(ISO_DIR)/$(CHECKSUM_NAME) "$(BASE_URL)/$(CHECKSUM_NAME)"
 	@echo "Download complete. Run 'make check-iso' to verify."
