@@ -100,8 +100,7 @@ build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 	@# Step 3: Copy SSH keys into ISO
 	@echo "[3/6] Embedding SSH keys from ~/.ssh/..."
 	@if ! ls $(SSH_DIR)/id_* >/dev/null 2>&1; then \
-		echo "ERROR: No SSH keys found in ~/.ssh/. The installed system needs these to clone nas-ansible."; \
-		echo "       Generate keys with: ssh-keygen"; \
+		echo "ERROR: No SSH keys found in ~/.ssh/."; \
 		exit 1; \
 	fi
 	mkdir -p $(WORK_DIR)/ssh-keys
