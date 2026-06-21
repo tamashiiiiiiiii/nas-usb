@@ -32,7 +32,6 @@ part /boot/efi  --fstype=efi  --size=512   --ondisk=sda
 part /boot      --fstype=xfs  --size=1946  --ondisk=sda
 part /          --fstype=xfs  --size=57242 --ondisk=sda
 part /downloads --fstype=xfs  --size=92262 --ondisk=sda
-part /tmp/bcache-cache --size=92262 --ondisk=sda
 
 # Default boot target — multi-user (no GUI on boot)
 skipx
@@ -223,9 +222,10 @@ dnf install -y ansible-* || true
 git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || \
     git clone https://github.com/tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || true
 
-# Set up bcache cache device
-if [ -b /dev/sda5 ]; then
-    make-bcache -C /dev/sda5 || true
+# Create raw bcache cache partition (sda5) — no filesystem, no mount
+END_OF_SDA4=$(parted -s /dev/sda unit MiB print | awk '/^ 4 /{print $3}' | tr -d 'MiB')
+if [ -n "$END_OF_SDA4" ]; then
+    parted -s /dev/sda mkpart primary "${END_OF_SDA4}MiB" 100% || true
 fi
 
 # Install AI coding tools (skip failures)
