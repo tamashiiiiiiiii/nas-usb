@@ -22,17 +22,17 @@ selinux --enforcing
 firewall --enabled --service=ssh --service=samba --service=nfs --service=cockpit
 
 # Bootloader
-bootloader --location=mbr --boot-drive=sda
+bootloader --location=mbr
 
-# Disk partitioning — wipe sda completely
+# Disk partitioning — wipe first disk completely
+# Works on sda (SATA/SAS), vda (virtio VM), nvme0n1 (NVMe)
 zerombr
-clearpart --all --drives=sda --initlabel
-ignoredisk --only-use=sda
+clearpart --all --initlabel
 
-part /boot/efi  --fstype=efi  --size=512   --ondisk=sda
-part /boot      --fstype=xfs  --size=1946  --ondisk=sda
-part /          --fstype=xfs  --size=57242 --ondisk=sda
-part /downloads --fstype=xfs  --size=92262 --ondisk=sda
+part /boot/efi  --fstype=efi  --size=512
+part /boot      --fstype=xfs  --size=1946
+part /          --fstype=xfs  --size=57242
+part /downloads --fstype=xfs  --size=92262
 
 # Default boot target — multi-user (no GUI on boot)
 skipx
@@ -229,10 +229,14 @@ dnf install -y ansible-* || true
 git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || \
     git clone https://github.com/tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || true
 
-# Create raw bcache cache partition (sda5) — no filesystem, no mount
-END_OF_SDA4=$(parted -s /dev/sda unit MiB print | awk '/^ 4 /{print $3}' | tr -d 'MiB')
-if [ -n "$END_OF_SDA4" ]; then
-    parted -s /dev/sda mkpart primary "${END_OF_SDA4}MiB" 100% || true
+# Create raw bcache cache partition — no filesystem, no mount
+# Detect install disk (sda, vda, or nvme0n1)
+INSTALL_DISK=$(lsblk -dno NAME,TYPE | awk '$2=="disk"{print "/dev/"$1; exit}')
+if [ -n "$INSTALL_DISK" ]; then
+    LAST_PART_END=$(parted -s "$INSTALL_DISK" unit MiB print | awk '/^ [0-9]/{end=$3} END{print end}' | tr -d 'MiB')
+    if [ -n "$LAST_PART_END" ]; then
+        parted -s "$INSTALL_DISK" mkpart primary "${LAST_PART_END}MiB" 100% || true
+    fi
 fi
 
 # Install AI coding tools (skip failures)
