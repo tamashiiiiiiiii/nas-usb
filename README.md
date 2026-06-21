@@ -1,12 +1,12 @@
 # Quickstart
 
 ```bash
-make download        # fetch Fedora 44 Workstation ISO into iso/
+make download        # fetch Fedora 44 ISO into iso/ (parallel multi-mirror)
 make check-iso       # verify checksum
 make build           # build custom ISO into build/
 ```
 
-The output ISO (`build/nas-workstation.iso`) is a bootable installer that auto-partitions `/dev/sda` and installs a full workstation environment.
+The output ISO (`build/nas-workstation.iso`) is a bootable Fedora installer that auto-partitions `/dev/sda`, installs a full workstation with 25+ desktop/development groups, and runs post-install scripts for AI coding tools.
 
 ## Project Structure
 
@@ -25,39 +25,146 @@ nas-usb/
 | Target | Description |
 |---|---|
 | `make help` | Show available targets |
-| `make download` | Download Fedora 44 ISO (parallel multi-mirror via aria2) |
-| `make check-iso` | Verify ISO checksum |
-| `make validate-ks` | Validate kickstart syntax |
-| `make build` | Build the custom ISO |
-| `make clean` | Remove build artifacts |
+| `make download` | Download Fedora 44 ISO via aria2 from 10 EU mirrors in parallel |
+| `make check-iso` | Verify downloaded ISO against Fedora CHECKSUM file |
+| `make validate-ks` | Validate kickstart syntax with `ksvalidator` |
+| `make build` | Build the custom ISO using `livemedia-creator` (requires root) |
+| `make clean` | Remove build artifacts from `build/` |
 | `make clean-all` | Remove build artifacts and downloaded ISOs |
 
 ## Kickstart Configuration
 
-The `kickstart/kickstart.ks` file defines the automated install:
+The `kickstart/kickstart.ks` file defines a fully automated Fedora installation.
 
-### Disk Layout (`/dev/sda`)
+### Disk Layout
 
-| Partition | Size | Filesystem | Mount Point |
-|---|---|---|---|
-| sda1 | 512M | vfat | /boot/efi |
-| sda2 | 1.9G | xfs | /boot |
-| sda3 | 55.9G | xfs | / |
-| sda4 | 90.1G | xfs | /downloads |
-| sda5 | 90.1G | bcache | (cache only) |
+The installer wipes `/dev/sda` completely and creates the following partition scheme:
 
-### Package Groups
+| Partition | Size | Filesystem | Mount Point | Purpose |
+|---|---|---|---|---|
+| sda1 | 512 MB | vfat | /boot/efi | EFI System Partition |
+| sda2 | 1.9 GB | xfs | /boot | Boot partition |
+| sda3 | 55.9 GB | xfs | / | Root filesystem |
+| sda4 | 90.1 GB | xfs | /downloads | Downloads / media storage |
+| sda5 | 90.1 GB | bcache | (cache) | SSD cache for RAID arrays |
 
-Installs 25+ desktop and development groups including KDE, COSMIC, Budgie, MATE, LibreOffice, development tools, container management, and media applications.
+### System Configuration
 
-### Post-Install
+| Setting | Value |
+|---|---|
+| Language | en_IE.UTF-8 |
+| Keyboard | Irish (ie) |
+| Timezone | Europe/Dublin (UTC) |
+| Root password | 123456 (plaintext, change after install) |
+| SELinux | Enforcing |
+| Firewall | Enabled, SSH allowed |
+| Root SSH login | Enabled |
 
-- Enables root SSH login
-- Installs AI coding tools: Claude Code, OpenCode, Codex, Cursor, Grok CLI
+### Package Groups (25+)
 
-### Requirements
+The kickstart installs a comprehensive workstation environment:
 
-- `livecd-tools` and `pykickstart` (included in kickstart package list)
-- `aria2` (auto-installed by Makefile if missing)
-- Root access for `livemedia-creator`
-- ~10GB free space for build
+**Desktop Environments:**
+- KDE (kde-apps, kde-desktop)
+- COSMIC (cosmic-desktop, cosmic-desktop-apps)
+- Budgie (budgie-desktop, budgie-desktop-apps)
+- MATE (mate-applications)
+
+**Development:**
+- development-tools, c-development, kde-software-development
+- editors, container-management, cloud-management
+
+**Productivity:**
+- office, libreoffice, design-suite
+
+**Media:**
+- kde-media, sound-and-video, audio
+
+**System:**
+- admin-tools, system-tools, network-server
+- desktop-accessibility, window-managers
+
+**Other:**
+- games, vlc
+
+### Additional Packages
+
+Beyond groups, the kickstart installs: `vim`, `git`, `htop`, `tmux`, `curl`, `wget`, `podman`, `podman-compose`, `nodejs`, `npm`, `python3-pip`, `gcc`, `make`, `livecd-tools`, `pykickstart`, `bcache-tools`.
+
+### Post-Install Scripts
+
+The `%post` section runs after installation:
+
+1. **Enable root SSH login** — sets `PermitRootLogin yes` in sshd_config
+2. **Install AI coding tools:**
+   - [Claude Code](https://claude.ai) — Anthropic's CLI coding assistant
+   - [OpenCode](https://opencode.ai) — Open-source coding agent
+   - [Codex](https://www.npmjs.com/package/@openai/codex) — OpenAI's CLI tool
+   - [Cursor](https://cursor.com) — AI-powered code editor
+   - [Grok CLI](https://x.ai) — xAI's command-line interface
+
+## Download Mirrors
+
+The `make download` target uses `aria2c` for parallel multi-source downloading from 10 Western European mirrors:
+
+| Country | Mirror |
+|---|---|
+| Norway | mirror.23m.com |
+| Netherlands | mirror.i3d.net |
+| UK | fedora.mirrorservice.org |
+| France | mirror.in2p3.fr |
+| Finland | nic.funet.fi |
+| Denmark | mirror.netsite.dk |
+| Germany | ftp-stud.hs-esslingen.de |
+| Switzerland | mirror.init7.net |
+| Austria | mirror.imt-systems.com |
+| Sweden | mirror.bahnhof.net |
+
+`aria2` is auto-installed if missing (supports dnf, apt-get, pacman).
+
+## Requirements
+
+| Requirement | Purpose |
+|---|---|
+| `aria2` | Parallel ISO download (auto-installed) |
+| `livecd-tools` | ISO build tool |
+| `pykickstart` | Kickstart validation (`ksvalidator`) |
+| Root access | Required for `livemedia-creator` |
+| ~10 GB free space | For build scratch and output ISO |
+
+## Build Process
+
+1. `make download` fetches the Fedora 44 Workstation Live ISO (~2.3 GB) into `iso/`
+2. `make check-iso` verifies the download against the Fedora CHECKSUM file
+3. `make validate-ks` checks the kickstart syntax
+4. `make build` runs `livemedia-creator` which:
+   - Mounts the source ISO
+   - Applies the kickstart configuration
+   - Installs all packages into a temporary root
+   - Generates the custom bootable ISO at `build/nas-workstation.iso`
+
+## Usage
+
+Write the built ISO to a USB drive:
+
+```bash
+sudo dd if=build/nas-workstation.iso of=/dev/sdX bs=4M status=progress
+```
+
+Boot from the USB. The installer will automatically:
+- Wipe `/dev/sda`
+- Create the partition layout
+- Install all packages
+- Run post-install scripts
+- Reboot into the new system
+
+## Updating Fedora Version
+
+Edit the version variables at the top of the `Makefile`:
+
+```makefile
+FEDORA_VER := 44
+FEDORA_REL := 1.7
+```
+
+Then run `make clean-all && make download && make build`.
