@@ -1,8 +1,8 @@
 *.iso
 *.aria2
 *-CHECKSUM
-scratch/
 build/
+iso/
 ssh-keys/id_*
 ssh-keys/known_hosts
 ssh-keys/authorized_keys

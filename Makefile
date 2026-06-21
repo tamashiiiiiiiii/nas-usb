@@ -21,7 +21,7 @@ ISO_NAME := Fedora-Everything-netinst-$(ARCH)-$(FEDORA_VER)-$(FEDORA_REL).iso
 CHECKSUM_NAME := Fedora-Everything-$(FEDORA_VER)-$(FEDORA_REL)-$(ARCH)-CHECKSUM
 ISO_SHA256 := bd285201494dd0ba09b54d05ac707de1401668b8512a573edb5922dcf9d7067e
 BASE_URL := https://download.fedoraproject.org/pub/fedora/linux/releases/$(FEDORA_VER)/Everything/$(ARCH)/iso
-OUTPUT_ISO := Fedora-$(FEDORA_VER)-Tanoki-$(ARCH).iso
+OUTPUT_ISO := tanoki.iso
 
 ISO_DIR := iso
 KS_DIR := kickstart
@@ -29,7 +29,7 @@ SSH_DIR := ssh-keys
 BUILD_DIR := build
 WORK_DIR := $(BUILD_DIR)/iso-root
 
-ISO_SRC := $(ISO_DIR)/$(ISO_NAME)
+ISO_SRC := $(ISO_DIR)/source.iso
 ISO_OUT := $(BUILD_DIR)/$(OUTPUT_ISO)
 KS_FILE := $(KS_DIR)/kickstart.ks
 
@@ -61,18 +61,14 @@ validate-ks: ## Validate the kickstart file syntax
 check-iso: ## Verify ISO integrity with sha256sum
 	@if [ ! -f "$(ISO_SRC)" ]; then echo "ERROR: $(ISO_SRC) not found. Run 'make download' first."; exit 1; fi
 	@echo "Checking ISO: $(ISO_SRC)"
-	@if [ -f "$(ISO_DIR)/$(CHECKSUM_NAME)" ]; then \
-		cd $(ISO_DIR) && sha256sum -c --ignore-missing $(CHECKSUM_NAME); \
-	else \
-		echo "$(ISO_SHA256)  $(ISO_SRC)" | sha256sum -c -; \
-	fi
+	@echo "$(ISO_SHA256)  $(ISO_SRC)" | sha256sum -c -
 
 download: ## Download the Fedora Workstation ISO (parallel multi-mirror)
 	@echo "Downloading Fedora Workstation $(FEDORA_VER)-$(FEDORA_REL)..."
 	@mkdir -p $(ISO_DIR)
 	@echo "Using aria2c (parallel download from 10 mirrors across Western Europe)..."
 	cd $(ISO_DIR) && aria2c -x 10 -s 10 -j 10 -k 1M --file-allocation=none --auto-file-renaming=false \
-		-o $(ISO_NAME) \
+		-o source.iso \
 		"https://mirror.23m.com/fedora/linux/releases/$(FEDORA_VER)/Everything/$(ARCH)/iso/$(ISO_NAME)" \
 		"https://mirror.i3d.net/pub/fedora/linux/releases/$(FEDORA_VER)/Everything/$(ARCH)/iso/$(ISO_NAME)" \
 		"https://fedora.mirrorservice.org/fedora/linux/releases/$(FEDORA_VER)/Everything/$(ARCH)/iso/$(ISO_NAME)" \
@@ -170,6 +166,8 @@ build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 	@# Step 6: Implant MD5 checksum
 	@echo "[6/6] Implanting ISO checksum..."
 	implantisomd5 $(ISO_OUT)
+	@# Clean up extracted ISO tree
+	rm -rf $(WORK_DIR)
 	@echo ""
 	@echo "=== Build complete ==="
 	@echo "Output: $(ISO_OUT) ($$(du -h $(ISO_OUT) | cut -f1))"
