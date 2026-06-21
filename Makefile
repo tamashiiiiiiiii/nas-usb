@@ -33,24 +33,25 @@ ISO_SRC := $(ISO_DIR)/$(ISO_NAME)
 ISO_OUT := $(BUILD_DIR)/$(OUTPUT_ISO)
 KS_FILE := $(KS_DIR)/kickstart.ks
 
-.PHONY: help build clean clean-all check-iso check-deps validate-ks download flash
+.DEFAULT_GOAL := help
+.PHONY: help setup build clean clean-all check-iso validate-ks download flash eject
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
-check-deps: ## Install build dependencies (xorriso, isomd5sum, aria2)
-	@echo "Checking dependencies..."
-	@command -v xorriso >/dev/null 2>&1 || { echo "Installing xorriso..."; sudo dnf -y install xorriso; }
-	@command -v implantisomd5 >/dev/null 2>&1 || { echo "Installing isomd5sum..."; sudo dnf -y install isomd5sum; }
-	@if ! command -v aria2c >/dev/null 2>&1; then \
-		echo "Installing aria2..."; \
-		if command -v dnf >/dev/null 2>&1; then sudo dnf install -y aria2; \
-		elif command -v apt-get >/dev/null 2>&1; then sudo apt-get install -y aria2; \
-		elif command -v pacman >/dev/null 2>&1; then sudo pacman -S --noconfirm aria2; \
-		fi; \
+setup: ## Install required tools (xorriso, isomd5sum, aria2, pykickstart, syslinux)
+	@echo "Installing build dependencies..."
+	@if command -v dnf >/dev/null 2>&1; then \
+		sudo dnf install -y xorriso isomd5sum aria2 pykickstart syslinux; \
+	elif command -v apt-get >/dev/null 2>&1; then \
+		sudo apt-get install -y xorriso aria2 syslinux-utils; \
+	elif command -v pacman >/dev/null 2>&1; then \
+		sudo pacman -S --noconfirm xorriso aria2 syslinux; \
+	else \
+		echo "ERROR: Unsupported package manager."; exit 1; \
 	fi
-	@echo "All dependencies satisfied."
+	@echo "All dependencies installed."
 
 validate-ks: ## Validate the kickstart file syntax
 	@echo "Validating kickstart..."
@@ -62,7 +63,7 @@ check-iso: ## Verify ISO integrity with sha256sum
 	@echo "Checking ISO: $(ISO_SRC)"
 	@echo "$(ISO_SHA256)  $(ISO_SRC)" | sha256sum -c -
 
-download: check-deps ## Download the Fedora Workstation ISO (parallel multi-mirror)
+download: ## Download the Fedora Workstation ISO (parallel multi-mirror)
 	@echo "Downloading Fedora Workstation $(FEDORA_VER)-$(FEDORA_REL)..."
 	@mkdir -p $(ISO_DIR)
 	@echo "Using aria2c (parallel download from 10 mirrors across Western Europe)..."
@@ -81,7 +82,7 @@ download: check-deps ## Download the Fedora Workstation ISO (parallel multi-mirr
 	curl -L -o $(ISO_DIR)/$(CHECKSUM_NAME) "$(BASE_URL)/$(CHECKSUM_NAME)"
 	@echo "Download complete. Run 'make check-iso' to verify."
 
-build: check-deps ## Extract ISO, inject kickstart + SSH keys, rebuild
+build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 	@if [ ! -f "$(ISO_SRC)" ]; then echo "ERROR: $(ISO_SRC) not found. Run 'make download' first."; exit 1; fi
 	@if [ ! -f "$(KS_FILE)" ]; then echo "ERROR: $(KS_FILE) not found."; exit 1; fi
 	@echo "=== Building custom Tanoki ISO ==="
