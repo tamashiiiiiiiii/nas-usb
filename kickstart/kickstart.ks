@@ -2,9 +2,9 @@
 # Automated install to /dev/sda with custom partitioning
 
 text
-lang en_IE.UTF-8
-keyboard --xlayouts='ie'
-timezone Europe/Dublin --utc
+lang pt_PT.UTF-8
+keyboard --xlayouts='pt'
+timezone Europe/Lisbon --utc
 
 # Network
 network --bootproto=dhcp --activate --onboot=yes
@@ -152,8 +152,9 @@ pykickstart
 %post --log=/root/ks-post.log
 set -ex
 
-# Enable root login via SSH
+# Enable root login and password authentication via SSH
 sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
 # Set up bcache cache device
 if [ -b /dev/sda5 ]; then
