@@ -29,6 +29,7 @@ zerombr
 clearpart --all --drives=sda --initlabel
 ignoredisk --only-use=sda
 
+part biosboot   --fstype=biosboot --size=1 --ondisk=sda
 part /boot/efi  --fstype=efi  --size=512   --ondisk=sda
 part /boot      --fstype=xfs  --size=1946  --ondisk=sda
 part /          --fstype=xfs  --size=57242 --ondisk=sda
