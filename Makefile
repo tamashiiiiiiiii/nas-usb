@@ -29,10 +29,11 @@ validate-ks: ## Validate the kickstart file syntax
 check-iso: ## Verify ISO integrity with sha256sum
 	@if [ -z "$(ISO_SRC)" ]; then echo "ERROR: No Fedora ISO found. Download one first."; exit 1; fi
 	@echo "Checking ISO: $(ISO_SRC)"
-	@if [ -f "$(ISO_SRC).sha256" ]; then \
-		sha256sum -c "$(ISO_SRC).sha256"; \
+	@CHECKSUM_FILE=$$(ls -1 *-CHECKSUM 2>/dev/null | head -1); \
+	if [ -n "$$CHECKSUM_FILE" ]; then \
+		sha256sum -c --ignore-missing "$$CHECKSUM_FILE"; \
 	else \
-		echo "No .sha256 file found. Computing checksum:"; \
+		echo "No CHECKSUM file found. Computing checksum:"; \
 		sha256sum "$(ISO_SRC)"; \
 	fi
 
@@ -65,6 +66,8 @@ clean: ## Remove build artifacts and scratch directory
 
 download: ## Download the latest Fedora Workstation ISO
 	@echo "Downloading Fedora Workstation 44..."
-	curl -LO https://download.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-Live-x86_64-44-1.1.iso
-	curl -LO https://download.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-44-1.1-x86_64-CHECKSUM
+	curl -L -C - -o Fedora-Workstation-Live-44-1.7.x86_64.iso \
+		https://download.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-Live-44-1.7.x86_64.iso
+	curl -L -o Fedora-Workstation-44-1.7-x86_64-CHECKSUM \
+		https://download.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-44-1.7-x86_64-CHECKSUM
 	@echo "Download complete. Run 'make check-iso' to verify."
