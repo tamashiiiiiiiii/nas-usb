@@ -15,7 +15,13 @@ ISO_OUT := nas-workstation.iso
 KS_FILE := kickstart.ks
 SCRATCH := scratch
 
-.PHONY: build clean check-iso validate-ks help
+FEDORA_VER := 44
+FEDORA_REL := 1.7
+ISO_NAME := Fedora-Workstation-Live-$(FEDORA_VER)-$(FEDORA_REL).x86_64.iso
+CHECKSUM_NAME := Fedora-Workstation-$(FEDORA_VER)-$(FEDORA_REL)-x86_64-CHECKSUM
+BASE_URL := https://download.fedoraproject.org/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso
+
+.PHONY: build clean check-iso validate-ks help download
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -64,10 +70,21 @@ clean: ## Remove build artifacts and scratch directory
 	rm -f $(ISO_OUT)
 	@echo "Cleaned."
 
-download: ## Download the latest Fedora Workstation ISO
-	@echo "Downloading Fedora Workstation 44..."
-	curl -L -C - -o Fedora-Workstation-Live-44-1.7.x86_64.iso \
-		https://download.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-Live-44-1.7.x86_64.iso
-	curl -L -o Fedora-Workstation-44-1.7-x86_64-CHECKSUM \
-		https://download.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-44-1.7-x86_64-CHECKSUM
+download: ## Download the Fedora Workstation ISO (uses aria2 if available for speed)
+	@echo "Downloading Fedora Workstation $(FEDORA_VER)-$(FEDORA_REL)..."
+	@if command -v aria2c >/dev/null 2>&1; then \
+		echo "Using aria2c (parallel multi-mirror download)..."; \
+		aria2c -x 16 -s 16 -k 1M --file-allocation=none \
+			-o $(ISO_NAME) \
+			"$(BASE_URL)/$(ISO_NAME)" \
+			"https://mirror.karneval.cz/pub/linux/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
+			"https://eu.edge.kernel.org/fedora/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
+			"https://ftp-stud.hs-esslingen.de/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
+			"https://mirrors.n-ix.net/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
+			"https://www.mirrorservice.org/sites/dl.fedoraproject.org/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)"; \
+	else \
+		echo "Using curl (install aria2 for faster parallel downloads)..."; \
+		curl -L -C - -o $(ISO_NAME) "$(BASE_URL)/$(ISO_NAME)"; \
+	fi
+	curl -L -o $(CHECKSUM_NAME) "$(BASE_URL)/$(CHECKSUM_NAME)"
 	@echo "Download complete. Run 'make check-iso' to verify."
