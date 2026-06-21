@@ -42,6 +42,12 @@ firstboot --disabled
 # Services
 services --enabled=sshd,NetworkManager,cockpit.socket,postfix,samba,nfs-server,fail2ban,clamav-freshclam,tuned,pcp
 
+# Parallel package downloads during install
+%pre
+echo "max_parallel_downloads=10" >> /etc/dnf/dnf.conf
+echo "fastestmirror=True" >> /etc/dnf/dnf.conf
+%end
+
 # Reboot after install
 reboot --eject
 
@@ -206,6 +212,10 @@ pykickstart
 # Post-install script
 %post --log=/root/ks-post.log
 set -ex
+
+# Parallel DNF downloads on installed system
+echo "max_parallel_downloads=10" >> /etc/dnf/dnf.conf
+echo "fastestmirror=True" >> /etc/dnf/dnf.conf
 
 # Set default target to multi-user (no GUI on boot)
 systemctl set-default multi-user.target
