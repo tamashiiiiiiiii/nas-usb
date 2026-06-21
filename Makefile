@@ -79,19 +79,18 @@ download: ## Download the Fedora Workstation ISO (uses aria2 if available for sp
 		elif command -v pacman >/dev/null 2>&1; then sudo pacman -S --noconfirm aria2; \
 		else echo "ERROR: Could not install aria2. Install it manually."; exit 1; fi; \
 	fi
-	@if command -v aria2c >/dev/null 2>&1; then \
-		echo "Using aria2c (parallel multi-mirror download)..."; \
-		aria2c -x 16 -s 16 -k 1M --file-allocation=none \
-			-o $(ISO_NAME) \
-			"$(BASE_URL)/$(ISO_NAME)" \
-			"https://mirror.karneval.cz/pub/linux/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
-			"https://eu.edge.kernel.org/fedora/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
-			"https://ftp-stud.hs-esslingen.de/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
-			"https://mirrors.n-ix.net/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
-			"https://www.mirrorservice.org/sites/dl.fedoraproject.org/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)"; \
-	else \
-		echo "Using curl (install aria2 for faster parallel downloads)..."; \
-		curl -L -C - -o $(ISO_NAME) "$(BASE_URL)/$(ISO_NAME)"; \
-	fi
+	@echo "Using aria2c (parallel download from 10 mirrors across Western Europe)..."
+	aria2c -x 10 -s 10 -j 10 -k 1M --file-allocation=none --auto-file-renaming=false \
+		-o $(ISO_NAME) \
+		"https://mirror.23m.com/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
+		"https://mirror.i3d.net/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
+		"https://fedora.mirrorservice.org/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
+		"https://mirror.in2p3.fr/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
+		"https://www.nic.funet.fi/pub/mirrors/fedora.redhat.com/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
+		"https://mirror.netsite.dk/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
+		"https://ftp-stud.hs-esslingen.de/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
+		"https://mirror.init7.net/fedora/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
+		"https://mirror.imt-systems.com/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)" \
+		"https://mirror.bahnhof.net/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso/$(ISO_NAME)"
 	curl -L -o $(CHECKSUM_NAME) "$(BASE_URL)/$(CHECKSUM_NAME)"
 	@echo "Download complete. Run 'make check-iso' to verify."
