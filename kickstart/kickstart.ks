@@ -7,8 +7,7 @@ keyboard --xlayouts='pt'
 timezone Europe/Lisbon --utc
 
 # Network
-network --bootproto=dhcp --activate --onboot=yes
-network --hostname=tanoki.online
+network --bootproto=dhcp --activate --onboot=yes --hostname=tanoki.online
 
 # Root password
 rootpw --plaintext 123456
@@ -16,8 +15,6 @@ rootpw --plaintext 123456
 # Users
 user --name=nas --password=nas --plaintext --groups=wheel
 
-# Authentication
-auth authselect --enableshadow --passalgo=sha512
 
 # SELinux and firewall
 selinux --enforcing
@@ -47,7 +44,7 @@ services --enabled=sshd,NetworkManager,cockpit.socket,postfix,samba,nfs-server,f
 reboot --eject
 
 # Package selection — skip unavailable packages, don't block install
-%packages --ignoremissing --instLangs=en:pt
+%packages --ignoremissing
 
 # Base environment
 @^workstation-product-environment
