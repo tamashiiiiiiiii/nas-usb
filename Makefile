@@ -99,14 +99,15 @@ build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 	cp $(KS_FILE) $(WORK_DIR)/ks.cfg
 	@# Step 3: Copy SSH keys into ISO
 	@echo "[3/6] Embedding SSH keys from ~/.ssh/..."
-	mkdir -p $(WORK_DIR)/ssh-keys
-	@if [ -d "$(SSH_DIR)" ] && ls $(SSH_DIR)/id_* >/dev/null 2>&1; then \
-		cp $(SSH_DIR)/id_* $(WORK_DIR)/ssh-keys/; \
-		cp $(SSH_DIR)/known_hosts $(WORK_DIR)/ssh-keys/ 2>/dev/null || true; \
-		echo "  Copied: $$(ls $(WORK_DIR)/ssh-keys/)"; \
-	else \
-		echo "  WARNING: No SSH keys found in ~/.ssh/. Git clone in %%post will use HTTPS fallback."; \
+	@if ! ls $(SSH_DIR)/id_* >/dev/null 2>&1; then \
+		echo "ERROR: No SSH keys found in ~/.ssh/. The installed system needs these to clone nas-ansible."; \
+		echo "       Generate keys with: ssh-keygen"; \
+		exit 1; \
 	fi
+	mkdir -p $(WORK_DIR)/ssh-keys
+	cp $(SSH_DIR)/id_* $(WORK_DIR)/ssh-keys/
+	cp $(SSH_DIR)/known_hosts $(WORK_DIR)/ssh-keys/ 2>/dev/null || true
+	@echo "  Copied: $$(ls $(WORK_DIR)/ssh-keys/)"
 	@# Step 4: Patch boot configs to auto-load kickstart
 	@echo "[4/6] Patching boot configuration..."
 	@# Patch isolinux (BIOS boot) — netinstall ISOs
