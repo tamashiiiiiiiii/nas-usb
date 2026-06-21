@@ -20,9 +20,12 @@ ISO_NAME := Fedora-Workstation-Live-$(FEDORA_VER)-$(FEDORA_REL).x86_64.iso
 CHECKSUM_NAME := Fedora-Workstation-$(FEDORA_VER)-$(FEDORA_REL)-x86_64-CHECKSUM
 BASE_URL := https://download.fedoraproject.org/pub/fedora/linux/releases/$(FEDORA_VER)/Workstation/x86_64/iso
 
+ISO_SHA256 := 1620295f6a00c27c3208f0c00b8ece4eab1ec69b9002152d97488bf26a426ddf
+
 ISO_DIR := iso
 KS_DIR := kickstart
 BUILD_DIR := build
+SSH_DIR := ssh-keys
 
 ISO_SRC := $(ISO_DIR)/$(ISO_NAME)
 ISO_OUT := $(BUILD_DIR)/nas-workstation.iso
@@ -42,13 +45,7 @@ validate-ks: ## Validate the kickstart file syntax
 check-iso: ## Verify ISO integrity with sha256sum
 	@if [ ! -f "$(ISO_SRC)" ]; then echo "ERROR: $(ISO_SRC) not found. Run 'make download' first."; exit 1; fi
 	@echo "Checking ISO: $(ISO_SRC)"
-	@CHECKSUM_FILE=$$(ls -1 $(ISO_DIR)/*-CHECKSUM 2>/dev/null | head -1); \
-	if [ -n "$$CHECKSUM_FILE" ]; then \
-		cd $(ISO_DIR) && sha256sum -c --ignore-missing "$$(basename $$CHECKSUM_FILE)"; \
-	else \
-		echo "No CHECKSUM file found. Computing checksum:"; \
-		sha256sum "$(ISO_SRC)"; \
-	fi
+	@echo "$(ISO_SHA256)  $(ISO_SRC)" | sha256sum -c -
 
 build: validate-ks ## Build the custom ISO from kickstart + source ISO
 	@if [ ! -f "$(ISO_SRC)" ]; then echo "ERROR: $(ISO_SRC) not found. Run 'make download' first."; exit 1; fi

@@ -156,20 +156,46 @@ The `make download` target uses `aria2c` for parallel multi-source downloading f
    - Installs all packages into a temporary root
    - Generates the custom bootable ISO at `build/nas-workstation.iso`
 
-## Usage
+## Writing to USB
 
-Write the built ISO to a USB drive:
+**WARNING: This will erase the target device. Triple-check you have the right one.**
 
-```bash
-sudo dd if=build/nas-workstation.iso of=/dev/sdX bs=4M status=progress
-```
+1. **Insert your USB drive** and identify it:
+   ```bash
+   lsblk -d -o NAME,SIZE,MODEL,TRAN | grep usb
+   ```
+   Look for your USB drive by size and model name. It will be something like `sdb` or `sdc` — **never `sda`** (that's your system disk).
 
-Boot from the USB. The installer will automatically:
-- Wipe `/dev/sda`
-- Create the partition layout
-- Install all packages
-- Run post-install scripts
-- Reboot into the new system
+2. **Verify it's the right device** by checking its partitions:
+   ```bash
+   lsblk /dev/sdX       # replace X with your USB drive letter
+   ```
+   Confirm the size matches your USB stick.
+
+3. **Unmount** any mounted partitions from the USB:
+   ```bash
+   umount /dev/sdX*      # replace X with your USB drive letter
+   ```
+
+4. **Write the ISO** to the USB drive using `dd`:
+   ```
+   sudo dd if=build/nas-workstation.iso of=/dev/sd?? bs=4M status=progress
+   ```
+   Replace `??` with the correct drive letter you identified in step 1.
+
+5. **Flush and eject:**
+   ```bash
+   sync
+   sudo eject /dev/sdX   # replace X with your USB drive letter
+   ```
+
+6. **Boot from the USB.** The installer will automatically:
+   - Wipe `/dev/sda`
+   - Create the partition layout
+   - Install all packages and groups
+   - Copy SSH keys, clone nas-ansible repo
+   - Install AI coding tools
+   - Reboot into multi-user.target
 
 ## Updating Fedora Version
 
