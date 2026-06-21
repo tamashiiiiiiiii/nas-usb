@@ -72,6 +72,13 @@ clean: ## Remove build artifacts and scratch directory
 
 download: ## Download the Fedora Workstation ISO (uses aria2 if available for speed)
 	@echo "Downloading Fedora Workstation $(FEDORA_VER)-$(FEDORA_REL)..."
+	@if ! command -v aria2c >/dev/null 2>&1; then \
+		echo "Installing aria2..."; \
+		if command -v dnf >/dev/null 2>&1; then sudo dnf install -y aria2; \
+		elif command -v apt-get >/dev/null 2>&1; then sudo apt-get install -y aria2; \
+		elif command -v pacman >/dev/null 2>&1; then sudo pacman -S --noconfirm aria2; \
+		else echo "ERROR: Could not install aria2. Install it manually."; exit 1; fi; \
+	fi
 	@if command -v aria2c >/dev/null 2>&1; then \
 		echo "Using aria2c (parallel multi-mirror download)..."; \
 		aria2c -x 16 -s 16 -k 1M --file-allocation=none \
