@@ -8,7 +8,7 @@ timezone Europe/Lisbon --utc
 
 # Network
 network --bootproto=dhcp --activate --onboot=yes
-network --hostname=tanoki
+network --hostname=tanoki.online
 
 # Root password
 rootpw --plaintext 123456
@@ -34,15 +34,23 @@ part /          --fstype=xfs  --size=57242 --ondisk=sda
 part /downloads --fstype=xfs  --size=92262 --ondisk=sda
 part /tmp/bcache-cache --size=92262 --ondisk=sda
 
+# Default boot target — multi-user (no GUI on boot)
+skipx
+firstboot --disabled
+
 # Services
 services --enabled=sshd,NetworkManager,cockpit.socket,postfix,samba,nfs-server,fail2ban,clamav-freshclam,tuned,pcp
 
 # Reboot after install
 reboot --eject
 
-# Package selection
-%packages
+# Package selection — skip unavailable packages, don't block install
+%packages --ignoremissing --instLangs=en:pt
+
+# Base environment
 @^workstation-product-environment
+
+# Desktop environments and apps
 @office
 @kde-media
 @kde-software-development
@@ -82,22 +90,30 @@ wget
 gcc
 make
 python3-pip
+python3-passlib
 nodejs
 npm
+openssl
+dbus
+rsync
 
-# Container runtime
+# Ansible
+ansible-core
+
+# Container runtime (from roles/podman)
 podman
 podman-compose
 podman-docker
 containernetworking-plugins
 
-# Storage & RAID
+# Storage & RAID (from roles/mdadm, roles/fstrim, roles/mounts)
 mdadm
 lvm2
 xfsprogs
 bcache-tools
+ledmon
 
-# Network services (from nas-ansible roles)
+# Network services (from roles/samba, roles/netatalk, roles/email-smarthost, roles/unbound, roles/dnsmasq, roles/dns)
 samba
 samba-client
 samba-common
@@ -105,11 +121,16 @@ netatalk
 postfix
 cyrus-sasl-plain
 unbound
+dnsmasq
 avahi
 avahi-tools
 bind-utils
 
-# Security (from nas-ansible roles)
+# File sharing (from roles/ftp, roles/nfs)
+vsftpd
+nfs-utils
+
+# Security (from roles/fail2ban, roles/clamav, roles/selinux, roles/audit, roles/lynis)
 fail2ban-server
 fail2ban-sendmail
 clamav
@@ -117,11 +138,19 @@ clamav-update
 clamd
 policycoreutils-python-utils
 checkpolicy
+python3-libselinux
 authselect
+audit
+lynis
 
-# Monitoring (from nas-ansible roles)
+# Certificates (from roles/certs)
+certbot
+
+# Monitoring (from roles/pcp, roles/sysstat, roles/smartmontools, roles/cockpit)
 pcp
 pcp-system-tools
+sysstat
+smartmontools
 cockpit-ws
 cockpit-system
 cockpit-storaged
@@ -132,18 +161,37 @@ cockpit-packagekit
 cockpit-machines
 cockpit-session-recording
 cockpit-sosreport
+cockpit-bridge
+cockpit-files
+cockpit-kdump
 
-# Virtualisation (from nas-ansible roles)
+# System services (from roles/ntp, roles/cron, roles/kdump, roles/tuned, roles/logrotate, roles/rsyslog, roles/auto-updates)
+chrony
+cronie
+kexec-tools
+tuned
+logrotate
+rsyslog
+dnf5-plugin-automatic
+firewalld
+
+# Hardware (from roles/fancontrol, roles/ipmi)
+lm_sensors
+ipmitool
+freeipmi
+
+# Virtualisation (from roles/libvirt)
 libvirt
 qemu-kvm
 virt-install
 
-# Misc
-mailx
-ledmon
+# Boot (from roles/plymouth)
 plymouth
 plymouth-plugin-two-step
 plymouth-scripts
+
+# Misc
+mailx
 livecd-tools
 pykickstart
 %end
@@ -152,16 +200,32 @@ pykickstart
 %post --log=/root/ks-post.log
 set -ex
 
+# Set default target to multi-user (no GUI on boot)
+systemctl set-default multi-user.target
+
 # Enable root login and password authentication via SSH
 sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
 sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+
+# Copy SSH keys from installer media (placed by Makefile)
+if [ -d /run/install/repo/ssh-keys ]; then
+    mkdir -p /root/.ssh
+    cp /run/install/repo/ssh-keys/* /root/.ssh/
+    chmod 700 /root/.ssh
+    chmod 600 /root/.ssh/*
+    for f in /root/.ssh/*.pub; do [ -f "$f" ] && chmod 644 "$f"; done
+fi
+
+# Clone nas-ansible repo
+git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || \
+    git clone https://github.com/tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || true
 
 # Set up bcache cache device
 if [ -b /dev/sda5 ]; then
     make-bcache -C /dev/sda5 || true
 fi
 
-# Install AI coding tools
+# Install AI coding tools (skip failures)
 curl -fsSL https://claude.ai/install.sh | bash || true
 npm install -g @openai/codex || true
 curl -fsSL https://opencode.ai/install | bash || true
