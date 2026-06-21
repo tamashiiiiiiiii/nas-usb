@@ -96,8 +96,9 @@ openssl
 dbus
 rsync
 
-# Ansible
+# Ansible (from Makefile bootstrap)
 ansible-core
+sshpass
 
 # Container runtime (from roles/podman)
 podman
@@ -105,12 +106,17 @@ podman-compose
 podman-docker
 containernetworking-plugins
 
-# Storage & RAID (from roles/mdadm, roles/fstrim, roles/mounts)
+# Storage & RAID (from roles/mdadm, roles/fstrim, roles/mounts, Makefile disk-prep)
 mdadm
 lvm2
 xfsprogs
 bcache-tools
 ledmon
+hdparm
+lsscsi
+nvme-cli
+parted
+gdisk
 
 # Network services (from roles/samba, roles/netatalk, roles/email-smarthost, roles/unbound, roles/dnsmasq, roles/dns)
 samba
