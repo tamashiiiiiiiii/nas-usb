@@ -173,6 +173,9 @@ endif
 	@echo "  Device:  $(DEV)"
 	@lsblk -d -o NAME,SIZE,MODEL,TRAN $(DEV) | sed 's/^/  /'
 	@echo ""
+	@echo "  Connected USB devices:"
+	@lsusb 2>/dev/null | sed 's/^/  /' || true
+	@echo ""
 	@echo "  Existing partitions on $(DEV):"
 	@lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINT $(DEV) | sed 's/^/  /'
 	@echo ""
