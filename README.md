@@ -1,15 +1,17 @@
-# Quickstart
+# Fedora NAS Workstation — Custom Kickstart ISO Builder
 
 ```bash
 make setup                     # install build tools (first time only)
-make download                  # fetch Fedora 44 netinstall ISO
+make download                  # fetch Fedora 44 Everything netinstall ISO
 make check-iso                 # verify checksum
-make build                     # build custom ISO (embeds ~/.ssh/ keys automatically)
+make build                     # build custom ISO (embeds ~/.ssh/ keys)
+make flash DEV=/dev/sdX        # write to USB (requires confirmation)
 ```
 
-The output ISO (`build/nas-workstation.iso`) is a bootable Fedora installer that auto-partitions `/dev/sda`, installs a full workstation with 25+ desktop/development groups, and runs post-install scripts for AI coding tools.
+Output: `build/tanoki.iso` — bootable Fedora netinstall that auto-partitions `/dev/sda`, installs 25+ desktop/development groups, and runs post-install scripts.
 
-## Project Structure
+<details>
+<summary>Project Structure</summary>
 
 ```
 nas-usb/
@@ -21,53 +23,71 @@ nas-usb/
 └── README.md
 ```
 
-## SSH Keys
+</details>
+
+<details>
+<summary>SSH Keys</summary>
 
 The build automatically copies `~/.ssh/id_*` and `known_hosts` into the ISO. During install, the kickstart `%post` copies them to `/root/.ssh/` (mode 600), enabling `git clone` of the nas-ansible repo via SSH. No manual key copying needed.
 
-## Make Targets
+</details>
+
+<details>
+<summary>Make Targets</summary>
 
 | Target | Description |
 |---|---|
-| `make help` | Show available targets |
-| `make download` | Download Fedora 44 ISO via aria2 from 10 EU mirrors in parallel |
-| `make check-iso` | Verify downloaded ISO against Fedora CHECKSUM file |
+| `make` | Show help (default) |
+| `make setup` | Install required tools (xorriso, isomd5sum, aria2, pykickstart, syslinux) |
+| `make download` | Download Fedora 44 Everything netinstall ISO via aria2 (10 EU mirrors) |
+| `make check-iso` | Verify downloaded ISO checksum |
 | `make validate-ks` | Validate kickstart syntax with `ksvalidator` |
-| `make build` | Build the custom ISO using `livemedia-creator` (requires root) |
-| `make clean` | Remove build artifacts from `build/` |
+| `make build` | Extract ISO, inject kickstart + SSH keys, patch boot config, rebuild |
+| `make flash DEV=/dev/sdX` | Write ISO to USB with confirmation, sync, and eject |
+| `make eject DEV=/dev/sdX` | Safely eject a USB device |
+| `make clean` | Remove build artifacts |
 | `make clean-all` | Remove build artifacts and downloaded ISOs |
 
-## Kickstart Configuration
+</details>
 
-The `kickstart/kickstart.ks` file defines a fully automated Fedora installation.
+<details>
+<summary>Disk Layout</summary>
 
-### Disk Layout
-
-The installer wipes `/dev/sda` completely and creates the following partition scheme:
+The installer wipes `/dev/sda` completely and creates:
 
 | Partition | Size | Filesystem | Mount Point | Purpose |
 |---|---|---|---|---|
-| sda1 | 512 MB | vfat | /boot/efi | EFI System Partition |
-| sda2 | 1.9 GB | xfs | /boot | Boot partition |
-| sda3 | 55.9 GB | xfs | / | Root filesystem |
-| sda4 | 90.1 GB | xfs | /downloads | Downloads / media storage |
-| sda5 | 90.1 GB | bcache | (cache) | SSD cache for RAID arrays |
+| sda1 | 1 MB | biosboot | — | BIOS boot (GPT compatibility) |
+| sda2 | 512 MB | vfat | /boot/efi | EFI System Partition |
+| sda3 | 1.9 GB | xfs | /boot | Boot partition |
+| sda4 | 55.9 GB | xfs | / | Root filesystem |
+| sda5 | 90.1 GB | xfs | /downloads | Downloads / media storage |
+| sda6 | remaining | raw | — | bcache cache (created in %post) |
 
-### System Configuration
+</details>
+
+<details>
+<summary>System Configuration</summary>
 
 | Setting | Value |
 |---|---|
-| Language | en_IE.UTF-8 |
-| Keyboard | Irish (ie) |
-| Timezone | Europe/Dublin (UTC) |
+| Language | en_US.UTF-8 |
+| Keyboard | Portuguese (pt) |
+| Timezone | Europe/Lisbon (UTC) |
+| Hostname | tanoki.online |
 | Root password | 123456 (plaintext, change after install) |
+| User | nas / nas (wheel group, sudo access) |
 | SELinux | Enforcing |
-| Firewall | Enabled, SSH allowed |
-| Root SSH login | Enabled |
+| Firewall | Enabled (SSH, Samba, NFS, Cockpit) |
+| Root SSH login | Enabled (PermitRootLogin yes) |
+| SSH password auth | Enabled (PasswordAuthentication yes) |
+| Default boot target | multi-user.target (console, no GUI) |
+| Install source | Fedora 44 mirrorlist (network) |
 
-### Package Groups (25+)
+</details>
 
-The kickstart installs a comprehensive workstation environment:
+<details>
+<summary>Package Groups (25+)</summary>
 
 **Desktop Environments:**
 - KDE (kde-apps, kde-desktop)
@@ -92,25 +112,70 @@ The kickstart installs a comprehensive workstation environment:
 **Other:**
 - games, vlc
 
-### Additional Packages
+</details>
 
-Beyond groups, the kickstart installs: `vim`, `git`, `htop`, `tmux`, `curl`, `wget`, `podman`, `podman-compose`, `nodejs`, `npm`, `python3-pip`, `gcc`, `make`, `livecd-tools`, `pykickstart`, `bcache-tools`.
+<details>
+<summary>Individual Packages (from nas-ansible roles)</summary>
 
-### Post-Install Scripts
+| Category | Packages |
+|---|---|
+| Core tools | vim, git, htop, tmux, curl, wget, gcc, make, python3-pip, nodejs, npm, openssl, dbus, rsync |
+| Ansible | ansible-core, sshpass, ansible-* (via dnf in %post) |
+| Containers | podman, podman-compose, podman-docker, containernetworking-plugins |
+| Storage | mdadm, lvm2, xfsprogs, bcache-tools, ledmon, hdparm, lsscsi, nvme-cli, parted, gdisk |
+| Network | samba, samba-client, netatalk, postfix, unbound, dnsmasq, avahi, bind-utils, vsftpd, nfs-utils |
+| Security | fail2ban-server, clamav, clamd, policycoreutils-python-utils, authselect, audit, lynis, certbot |
+| Monitoring | pcp, sysstat, smartmontools, cockpit-ws + 12 cockpit plugins |
+| System | chrony, cronie, kexec-tools, tuned, logrotate, rsyslog, dnf5-plugin-automatic, firewalld |
+| Hardware | lm_sensors, ipmitool, freeipmi |
+| Virtualisation | libvirt, qemu-kvm, virt-install |
+| Boot | plymouth, plymouth-plugin-two-step, plymouth-scripts |
+
+</details>
+
+<details>
+<summary>Post-Install Scripts</summary>
 
 The `%post` section runs after installation:
 
-1. **Enable root SSH login** — sets `PermitRootLogin yes` in sshd_config
-2. **Install AI coding tools:**
+1. **Set default target** to multi-user.target (console boot)
+2. **Enable root SSH** — PermitRootLogin yes + PasswordAuthentication yes
+3. **Copy SSH keys** from installer media to `/root/.ssh/` (mode 600)
+4. **Install ansible-*** — `dnf install -y ansible-*`
+5. **Clone nas-ansible** — `git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible` (falls back to HTTPS)
+6. **Create bcache partition** — raw partition filling remaining disk space via parted
+7. **Install AI coding tools:**
    - [Claude Code](https://claude.ai) — Anthropic's CLI coding assistant
    - [OpenCode](https://opencode.ai) — Open-source coding agent
    - [Codex](https://www.npmjs.com/package/@openai/codex) — OpenAI's CLI tool
    - [Cursor](https://cursor.com) — AI-powered code editor
    - [Grok CLI](https://x.ai) — xAI's command-line interface
 
-## Download Mirrors
+**Enabled services:** sshd, NetworkManager, cockpit.socket, postfix, samba, nfs-server, fail2ban, clamav-freshclam, tuned, pcp
 
-The `make download` target uses `aria2c` for parallel multi-source downloading from 10 Western European mirrors:
+</details>
+
+<details>
+<summary>Build Process</summary>
+
+1. `make download` fetches the Fedora 44 Everything netinstall ISO (~1.2 GB) into `iso/source.iso`
+2. `make check-iso` verifies against the known SHA256 checksum
+3. `make build`:
+   - Extracts the ISO with xorriso
+   - Injects `kickstart.ks` as `/ks.cfg` at the ISO root
+   - Embeds `~/.ssh/id_*` keys into `/ssh-keys/`
+   - Patches `grub.cfg` to add `inst.ks=cdrom:/ks.cfg` to all boot entries
+   - Rebuilds hybrid ISO (BIOS + UEFI) preserving the original volume ID
+   - Implants MD5 checksum with isomd5sum
+   - Cleans up the extracted ISO tree
+   - Outputs `build/tanoki.iso`
+
+</details>
+
+<details>
+<summary>Download Mirrors</summary>
+
+The `make download` target uses `aria2c` for parallel downloading from 10 Western European mirrors:
 
 | Country | Mirror |
 |---|---|
@@ -125,71 +190,44 @@ The `make download` target uses `aria2c` for parallel multi-source downloading f
 | Austria | mirror.imt-systems.com |
 | Sweden | mirror.bahnhof.net |
 
-`aria2` is auto-installed if missing (supports dnf, apt-get, pacman).
+</details>
 
-## Requirements
+<details>
+<summary>Writing to USB</summary>
+
+Use `make flash DEV=/dev/sdX` which will:
+
+1. Show device info, lsusb output, and existing partitions
+2. Require you to type the full device path to confirm
+3. Write the ISO with `dd`, run `sync`, and eject
+
+To identify your USB device first:
+```bash
+lsblk -d -o NAME,SIZE,MODEL,TRAN
+```
+
+After booting from the USB, the installer will automatically wipe `/dev/sda`, partition, install all packages from the network, run post-install scripts, and reboot into multi-user.target.
+
+</details>
+
+<details>
+<summary>Requirements</summary>
 
 | Requirement | Purpose |
 |---|---|
-| `aria2` | Parallel ISO download (auto-installed) |
-| `livecd-tools` | ISO build tool |
+| `xorriso` | ISO extraction and rebuild |
+| `isomd5sum` | ISO checksum implanting |
+| `aria2` | Parallel multi-mirror ISO download |
 | `pykickstart` | Kickstart validation (`ksvalidator`) |
-| Root access | Required for `livemedia-creator` |
-| ~10 GB free space | For build scratch and output ISO |
+| `syslinux` | MBR boot image for hybrid ISO |
+| Network access | Installer fetches packages from Fedora mirrors |
 
-## Build Process
+All tools are auto-installed by `make setup`.
 
-1. `make download` fetches the Fedora 44 Workstation Live ISO (~2.3 GB) into `iso/`
-2. `make check-iso` verifies the download against the Fedora CHECKSUM file
-3. `make validate-ks` checks the kickstart syntax
-4. `make build` runs `livemedia-creator` which:
-   - Mounts the source ISO
-   - Applies the kickstart configuration
-   - Installs all packages into a temporary root
-   - Generates the custom bootable ISO at `build/nas-workstation.iso`
+</details>
 
-## Writing to USB
-
-**WARNING: This will erase the target device. Triple-check you have the right one.**
-
-1. **Insert your USB drive** and identify it:
-   ```bash
-   lsblk -d -o NAME,SIZE,MODEL,TRAN | grep usb
-   ```
-   Look for your USB drive by size and model name. It will be something like `sdb` or `sdc` — **never `sda`** (that's your system disk).
-
-2. **Verify it's the right device** by checking its partitions:
-   ```bash
-   lsblk /dev/sdX       # replace X with your USB drive letter
-   ```
-   Confirm the size matches your USB stick.
-
-3. **Unmount** any mounted partitions from the USB:
-   ```bash
-   umount /dev/sdX*      # replace X with your USB drive letter
-   ```
-
-4. **Write the ISO** to the USB drive using `dd`:
-   ```
-   sudo dd if=build/nas-workstation.iso of=/dev/sd?? bs=4M status=progress
-   ```
-   Replace `??` with the correct drive letter you identified in step 1.
-
-5. **Flush and eject:**
-   ```bash
-   sync
-   sudo eject /dev/sdX   # replace X with your USB drive letter
-   ```
-
-6. **Boot from the USB.** The installer will automatically:
-   - Wipe `/dev/sda`
-   - Create the partition layout
-   - Install all packages and groups
-   - Copy SSH keys, clone nas-ansible repo
-   - Install AI coding tools
-   - Reboot into multi-user.target
-
-## Updating Fedora Version
+<details>
+<summary>Updating Fedora Version</summary>
 
 Edit the version variables at the top of the `Makefile`:
 
@@ -198,4 +236,8 @@ FEDORA_VER := 44
 FEDORA_REL := 1.7
 ```
 
+You will also need to update `ISO_SHA256` and the `url --mirrorlist` in `kickstart/kickstart.ks`.
+
 Then run `make clean-all && make download && make build`.
+
+</details>
