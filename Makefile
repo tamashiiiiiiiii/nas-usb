@@ -109,39 +109,27 @@ build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 	fi
 	@# Step 4: Patch boot configs to auto-load kickstart
 	@echo "[4/6] Patching boot configuration..."
-	@# Patch isolinux (BIOS boot)
-	@if [ -f $(WORK_DIR)/isolinux/isolinux.cfg ]; then \
-		sed -i 's|append |append inst.ks=cdrom:/ks.cfg |g' $(WORK_DIR)/isolinux/isolinux.cfg; \
-		echo "  Patched: isolinux/isolinux.cfg"; \
-	fi
-	@if [ -f $(WORK_DIR)/isolinux/grub.conf ]; then \
-		sed -i 's|append |append inst.ks=cdrom:/ks.cfg |g' $(WORK_DIR)/isolinux/grub.conf; \
-		echo "  Patched: isolinux/grub.conf"; \
-	fi
-	@# Patch GRUB (UEFI boot)
-	@if [ -f $(WORK_DIR)/EFI/BOOT/grub.cfg ]; then \
-		sed -i '/^menuentry/,/^}/{s|linux\(.*\)|linux\1 inst.ks=cdrom:/ks.cfg|}' $(WORK_DIR)/EFI/BOOT/grub.cfg; \
-		echo "  Patched: EFI/BOOT/grub.cfg"; \
-	fi
+	@# Patch GRUB — add inst.ks to linux lines that don't already have it
 	@if [ -f $(WORK_DIR)/boot/grub2/grub.cfg ]; then \
-		sed -i '/^menuentry/,/^}/{s|linux\(.*\)|linux\1 inst.ks=cdrom:/ks.cfg|}' $(WORK_DIR)/boot/grub2/grub.cfg; \
+		sed -i '/inst\.ks/!{/^\tlinux /s|$$| inst.ks=cdrom:/ks.cfg|}' $(WORK_DIR)/boot/grub2/grub.cfg; \
 		echo "  Patched: boot/grub2/grub.cfg"; \
 	fi
-	@# Step 5: Rebuild ISO with xorriso
+	@# Step 5: Rebuild ISO with xorriso (BIOS + UEFI hybrid, matching Fedora layout)
 	@echo "[5/6] Rebuilding ISO..."
 	xorriso -as mkisofs \
-		-V "Fedora-Tanoki" \
+		-V "Fedora-WS-Live-44" \
 		-o $(ISO_OUT) \
-		-b isolinux/isolinux.bin \
-		-c isolinux/boot.cat \
+		-b boot/x86_64/loader/eltorito.img \
 		-no-emul-boot \
 		-boot-load-size 4 \
 		-boot-info-table \
+		--grub2-boot-info \
+		--grub2-mbr $(WORK_DIR)/boot/grub2/i386-pc/boot_hybrid.img \
 		-eltorito-alt-boot \
-		-e images/efiboot.img \
+		-e --interval:appended_partition_2:all:: \
 		-no-emul-boot \
-		-isohybrid-mbr /usr/share/syslinux/isohdpfx.bin \
 		-isohybrid-gpt-basdat \
+		-append_partition 2 C12A7328-F81F-11D2-BA4B-00A0C93EC93B $(WORK_DIR)/boot/x86_64/loader/eltorito.img \
 		$(WORK_DIR)
 	@# Step 6: Implant MD5 checksum
 	@echo "[6/6] Implanting ISO checksum..."
