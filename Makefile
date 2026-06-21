@@ -130,7 +130,7 @@ build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 	@# Step 5: Rebuild ISO with xorriso (BIOS + UEFI hybrid)
 	@echo "[5/6] Rebuilding ISO..."
 	xorriso -as mkisofs \
-		-V "$$(xorriso -indev $(ISO_SRC) 2>&1 | grep 'Volume id' | sed "s/.*'//;s/'//")" \
+		-V "Fedora-E-dvd-x86_64-44" \
 		-o $(ISO_OUT) \
 		-b images/eltorito.img \
 		-no-emul-boot \
