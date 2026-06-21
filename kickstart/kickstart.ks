@@ -13,6 +13,9 @@ network --hostname=tanoki.online
 # Root password
 rootpw --plaintext 123456
 
+# Users
+user --name=nas --password=nas --plaintext --groups=wheel
+
 # Authentication
 auth authselect --enableshadow --passalgo=sha512
 
