@@ -1,7 +1,7 @@
 # Fedora NAS Workstation Kickstart
 # Automated install to /dev/sda with custom partitioning
 
-graphical
+text
 url --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-44&arch=x86_64
 lang en_US.UTF-8
 keyboard --xlayouts='pt'
