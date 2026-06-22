@@ -2,7 +2,7 @@
 # Automated install to /dev/sda with custom partitioning
 
 text
-url --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-44&arch=x86_64
+url --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-44&arch=x86_64&protocol=http
 lang en_US.UTF-8
 keyboard --xlayouts='pt'
 timezone Europe/Lisbon --utc
@@ -248,6 +248,11 @@ set -ex
 # Parallel DNF downloads on installed system
 echo "max_parallel_downloads=10" >> /etc/dnf/dnf.conf
 echo "fastestmirror=True" >> /etc/dnf/dnf.conf
+
+# Force HTTP-only mirrors for Fedora repos (cacheable by Squid proxy)
+for repo in /etc/yum.repos.d/fedora*.repo; do
+    sed -i 's|^metalink=https://mirrors.fedoraproject.org/metalink?|metalink=https://mirrors.fedoraproject.org/metalink?protocol=http\&|' "$repo"
+done
 
 # Set default target to multi-user (no GUI on boot)
 systemctl set-default multi-user.target
