@@ -249,8 +249,10 @@ for f in /root/.ssh/*.pub; do [ -f "$f" ] && chmod 644 "$f"; done
 # Install all ansible packages (wildcard)
 dnf install -y ansible-* || true
 
-# Clone nas-ansible repo
-git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || true
+# Clone nas-ansible repo (SSH only, non-interactive)
+ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null
+GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes" \
+    git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || true
 
 # Create raw bcache cache partition (sda5) — no filesystem, no mount
 LAST_PART_END=$(parted -s /dev/sda unit MiB print | awk '/^ [0-9]/{end=$3} END{print end}' | tr -d 'MiB')
@@ -258,11 +260,12 @@ if [ -n "$LAST_PART_END" ]; then
     parted -s /dev/sda mkpart primary "${LAST_PART_END}MiB" 100% || true
 fi
 
-# Install AI coding tools (skip failures)
-curl -fsSL https://claude.ai/install.sh | bash || true
-npm install -g @openai/codex || true
-curl -fsSL https://opencode.ai/install | bash || true
-curl https://cursor.com/install -fsSL | bash || true
-curl -fsSL https://x.ai/cli/install.sh | bash || true
+# Install AI coding tools (non-interactive, skip failures)
+export NONINTERACTIVE=1
+curl -fsSL https://claude.ai/install.sh | bash -s -- --yes 2>/dev/null || true
+npm install -g @openai/codex 2>/dev/null || true
+curl -fsSL https://opencode.ai/install | bash 2>/dev/null || true
+curl -fsSL https://cursor.com/install | bash 2>/dev/null || true
+curl -fsSL https://x.ai/cli/install.sh | bash 2>/dev/null || true
 
 %end
