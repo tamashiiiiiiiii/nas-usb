@@ -107,6 +107,13 @@ build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 	cp $(SSH_DIR)/id_* $(WORK_DIR)/ssh-keys/
 	cp $(SSH_DIR)/known_hosts $(WORK_DIR)/ssh-keys/ 2>/dev/null || true
 	@echo "  Copied: $$(ls $(WORK_DIR)/ssh-keys/)"
+	@# Step 3b: Inject Anaconda cyberpunk theme
+	@echo "  Injecting cyberpunk theme..."
+	@if [ -f theme/tanoki-cyberpunk.css ]; then \
+		THEME_DIR=$(WORK_DIR)/usr/share/anaconda/pixmaps; \
+		mkdir -p "$$THEME_DIR"; \
+		cp theme/tanoki-cyberpunk.css "$$THEME_DIR/custom.css"; \
+	fi
 	@# Step 4: Patch boot configs to auto-load kickstart
 	@echo "[4/6] Patching boot configuration..."
 	@# Patch isolinux (BIOS boot) — netinstall ISOs
@@ -118,15 +125,15 @@ build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 		sed -i '/inst\.ks/!s|append |append inst.ks=cdrom:/ks.cfg |' $(WORK_DIR)/isolinux/grub.conf; \
 		echo "  Patched: isolinux/grub.conf"; \
 	fi
-	@# Patch GRUB — add inst.ks to all linux lines that load vmlinuz
-	@if [ -f $(WORK_DIR)/EFI/BOOT/grub.cfg ]; then \
-		sed -i '/inst\.ks/!{/linux.*vmlinuz/s|quiet|inst.ks=cdrom:/ks.cfg quiet|}' $(WORK_DIR)/EFI/BOOT/grub.cfg; \
-		echo "  Patched: EFI/BOOT/grub.cfg"; \
-	fi
-	@if [ -f $(WORK_DIR)/boot/grub2/grub.cfg ]; then \
-		sed -i '/inst\.ks/!{/linux.*vmlinuz/s|quiet|inst.ks=cdrom:/ks.cfg quiet|}' $(WORK_DIR)/boot/grub2/grub.cfg; \
-		echo "  Patched: boot/grub2/grub.cfg"; \
-	fi
+	@# Patch GRUB — add inst.ks, set timeout=0, default=0 for instant boot
+	@for grubcfg in $(WORK_DIR)/EFI/BOOT/grub.cfg $(WORK_DIR)/boot/grub2/grub.cfg; do \
+		if [ -f "$$grubcfg" ]; then \
+			sed -i '/inst\.ks/!{/linux.*vmlinuz/s|quiet|inst.ks=cdrom:/ks.cfg quiet|}' "$$grubcfg"; \
+			sed -i 's/^set timeout=.*/set timeout=0/' "$$grubcfg"; \
+			sed -i 's/^set default=.*/set default="0"/' "$$grubcfg"; \
+			echo "  Patched: $$(echo $$grubcfg | sed 's|.*/iso-root/||')"; \
+		fi; \
+	done
 	@# Step 5: Rebuild ISO with xorriso (BIOS + UEFI hybrid)
 	@echo "[5/6] Rebuilding ISO..."
 	xorriso -as mkisofs \

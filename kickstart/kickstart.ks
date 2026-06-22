@@ -1,7 +1,7 @@
 # Fedora NAS Workstation Kickstart
 # Automated install to /dev/sda with custom partitioning
 
-text
+graphical
 url --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-44&arch=x86_64
 lang en_US.UTF-8
 keyboard --xlayouts='pt'
@@ -59,6 +59,28 @@ if [ -n "$GATEWAY" ]; then
         echo ">>> No proxy detected on gateway — downloading directly from mirrors" > /dev/tty1
         echo "" > /dev/tty1
     fi
+fi
+
+# Inject cyberpunk theme CSS into Anaconda Web UI
+CDROM_DEV=$(blkid -t TYPE=iso9660 -o device 2>/dev/null | head -1)
+if [ -n "$CDROM_DEV" ]; then
+    TMPMNT=$(mktemp -d)
+    mount -o ro "$CDROM_DEV" "$TMPMNT" 2>/dev/null
+    if [ -f "$TMPMNT/usr/share/anaconda/pixmaps/custom.css" ]; then
+        for cssdir in /usr/share/cockpit/anaconda-webui /usr/share/anaconda/pixmaps; do
+            if [ -d "$cssdir" ]; then
+                cp "$TMPMNT/usr/share/anaconda/pixmaps/custom.css" "$cssdir/tanoki-cyberpunk.css"
+            fi
+        done
+        # Append CSS import to any existing index.html
+        for idx in /usr/share/cockpit/anaconda-webui/index.html; do
+            if [ -f "$idx" ]; then
+                sed -i 's|</head>|<link rel="stylesheet" href="tanoki-cyberpunk.css"></head>|' "$idx"
+            fi
+        done
+    fi
+    umount "$TMPMNT" 2>/dev/null
+    rmdir "$TMPMNT"
 fi
 %end
 
@@ -212,10 +234,6 @@ libvirt
 qemu-kvm
 virt-install
 
-# Boot (from roles/plymouth)
-plymouth
-plymouth-plugin-two-step
-plymouth-scripts
 
 # Misc
 mailx

@@ -1,0 +1,144 @@
+/* tanoki.online — Cyberpunk Anaconda Theme */
+
+:root {
+  --pf-v5-global--primary-color--100: #00fff9;
+  --pf-v5-global--primary-color--200: #00ccca;
+  --pf-v5-global--link--Color: #00fff9;
+  --pf-v5-global--link--Color--hover: #ff00ff;
+  --pf-v5-global--BackgroundColor--100: #0a0a1a;
+  --pf-v5-global--BackgroundColor--200: #12122a;
+  --pf-v5-global--BackgroundColor--dark-100: #0a0a1a;
+  --pf-v5-global--Color--100: #e0e0ff;
+  --pf-v5-global--Color--200: #b0b0d0;
+  --pf-v5-global--active-color--100: #ff00ff;
+  --pf-v5-global--success-color--100: #00ff41;
+  --pf-v5-global--danger-color--100: #ff003c;
+  --pf-v5-global--warning-color--100: #ffb800;
+  --pf-v5-global--info-color--100: #00fff9;
+}
+
+body {
+  background-color: #0a0a1a !important;
+  color: #e0e0ff !important;
+}
+
+.pf-v5-c-page,
+.pf-v5-c-page__main,
+.pf-c-page,
+.pf-c-page__main {
+  background-color: #0a0a1a !important;
+}
+
+.pf-v5-c-page__header,
+.pf-c-page__header,
+.pf-v5-c-masthead,
+.pf-c-masthead {
+  background-color: #12122a !important;
+  border-bottom: 2px solid #00fff9 !important;
+}
+
+.pf-v5-c-page__sidebar,
+.pf-c-page__sidebar {
+  background-color: #12122a !important;
+  border-right: 1px solid #1a1a3a !important;
+}
+
+.pf-v5-c-nav__link,
+.pf-c-nav__link {
+  color: #b0b0d0 !important;
+}
+
+.pf-v5-c-nav__link:hover,
+.pf-c-nav__link:hover,
+.pf-v5-c-nav__link.pf-m-current,
+.pf-c-nav__link.pf-m-current {
+  color: #00fff9 !important;
+  border-left-color: #ff00ff !important;
+}
+
+.pf-v5-c-button.pf-m-primary,
+.pf-c-button.pf-m-primary {
+  background-color: #00fff9 !important;
+  color: #0a0a1a !important;
+  border: none !important;
+}
+
+.pf-v5-c-button.pf-m-primary:hover,
+.pf-c-button.pf-m-primary:hover {
+  background-color: #ff00ff !important;
+  color: #0a0a1a !important;
+}
+
+.pf-v5-c-button.pf-m-secondary,
+.pf-c-button.pf-m-secondary {
+  border-color: #00fff9 !important;
+  color: #00fff9 !important;
+}
+
+.pf-v5-c-card,
+.pf-c-card {
+  background-color: #12122a !important;
+  border: 1px solid #1a1a3a !important;
+}
+
+.pf-v5-c-card:hover,
+.pf-c-card:hover {
+  border-color: #00fff9 !important;
+}
+
+.pf-v5-c-title,
+.pf-c-title,
+h1, h2, h3, h4 {
+  color: #00fff9 !important;
+}
+
+.pf-v5-c-progress__bar,
+.pf-c-progress__bar {
+  background-color: #1a1a3a !important;
+}
+
+.pf-v5-c-progress__indicator,
+.pf-c-progress__indicator {
+  background-color: #ff00ff !important;
+}
+
+.pf-v5-c-alert.pf-m-info,
+.pf-c-alert.pf-m-info {
+  border-left-color: #00fff9 !important;
+}
+
+.pf-v5-c-alert.pf-m-success,
+.pf-c-alert.pf-m-success {
+  border-left-color: #00ff41 !important;
+}
+
+.pf-v5-c-form-control input,
+.pf-c-form-control input,
+.pf-v5-c-form-control select,
+.pf-c-form-control select {
+  background-color: #1a1a3a !important;
+  color: #e0e0ff !important;
+  border-color: #2a2a4a !important;
+}
+
+.pf-v5-c-form-control input:focus,
+.pf-c-form-control input:focus {
+  border-color: #00fff9 !important;
+  box-shadow: 0 0 4px #00fff9 !important;
+}
+
+.pf-v5-c-modal-box,
+.pf-c-modal-box {
+  background-color: #12122a !important;
+  border: 1px solid #00fff9 !important;
+}
+
+.pf-v5-c-wizard__header,
+.pf-c-wizard__header {
+  background-color: #12122a !important;
+}
+
+::selection {
+  background-color: #ff00ff !important;
+  color: #0a0a1a !important;
+}
