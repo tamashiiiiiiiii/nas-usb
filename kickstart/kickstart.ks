@@ -51,6 +51,13 @@ GATEWAY=$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}')
 if [ -n "$GATEWAY" ]; then
     if curl -s --connect-timeout 3 -o /dev/null -w '%{http_code}' "http://${GATEWAY}:3128/" 2>/dev/null | grep -qE '200|400|403|407'; then
         echo "proxy=http://${GATEWAY}:3128" >> /etc/dnf/dnf.conf
+        echo "" > /dev/tty1
+        echo ">>> Squid proxy detected at ${GATEWAY}:3128 — using it for package downloads" > /dev/tty1
+        echo "" > /dev/tty1
+    else
+        echo "" > /dev/tty1
+        echo ">>> No proxy detected on gateway — downloading directly from mirrors" > /dev/tty1
+        echo "" > /dev/tty1
     fi
 fi
 %end
