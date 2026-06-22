@@ -42,10 +42,17 @@ firstboot --disabled
 # Services
 services --enabled=sshd,NetworkManager
 
-# Parallel package downloads during install
+# Pre-install: parallel downloads + auto-detect proxy on gateway
 %pre
 echo "max_parallel_downloads=10" >> /etc/dnf/dnf.conf
 echo "fastestmirror=True" >> /etc/dnf/dnf.conf
+
+GATEWAY=$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}')
+if [ -n "$GATEWAY" ]; then
+    if curl -s --connect-timeout 3 -o /dev/null -w '%{http_code}' "http://${GATEWAY}:3128/" 2>/dev/null | grep -qE '200|400|403|407'; then
+        echo "proxy=http://${GATEWAY}:3128" >> /etc/dnf/dnf.conf
+    fi
+fi
 %end
 
 # Reboot after install
