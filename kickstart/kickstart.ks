@@ -19,7 +19,7 @@ user --name=nas --password=nas --plaintext --groups=wheel
 
 # SELinux and firewall
 selinux --enforcing
-firewall --enabled --service=ssh --service=samba --service=nfs --service=cockpit
+firewall --enabled --service=ssh
 
 # Bootloader
 bootloader --location=mbr --boot-drive=sda
@@ -40,7 +40,7 @@ skipx
 firstboot --disabled
 
 # Services
-services --enabled=sshd,NetworkManager,cockpit.socket,postfix,samba,nfs-server,fail2ban,clamav-freshclam,tuned,pcp
+services --enabled=sshd,NetworkManager
 
 # Parallel package downloads during install
 %pre
@@ -225,20 +225,32 @@ sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
 sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
 # Copy SSH keys from installer media (placed by Makefile)
-if [ -d /run/install/repo/ssh-keys ]; then
-    mkdir -p /root/.ssh
-    cp /run/install/repo/ssh-keys/* /root/.ssh/
-    chmod 700 /root/.ssh
-    chmod 600 /root/.ssh/*
-    for f in /root/.ssh/*.pub; do [ -f "$f" ] && chmod 644 "$f"; done
+mkdir -p /root/.ssh
+CDROM=$(blkid -t TYPE=iso9660 -o device 2>/dev/null | head -1)
+if [ -n "$CDROM" ]; then
+    MNTDIR=$(mktemp -d)
+    mount -o ro "$CDROM" "$MNTDIR" 2>/dev/null
+    if [ -d "$MNTDIR/ssh-keys" ]; then
+        cp "$MNTDIR/ssh-keys"/* /root/.ssh/
+    fi
+    umount "$MNTDIR" 2>/dev/null
+    rmdir "$MNTDIR"
 fi
+for d in /run/install/repo /run/install/isodir /mnt/install/source; do
+    if [ -d "$d/ssh-keys" ]; then
+        cp "$d/ssh-keys"/* /root/.ssh/ 2>/dev/null
+        break
+    fi
+done
+chmod 700 /root/.ssh
+chmod 600 /root/.ssh/* 2>/dev/null
+for f in /root/.ssh/*.pub; do [ -f "$f" ] && chmod 644 "$f"; done
 
 # Install all ansible packages (wildcard)
 dnf install -y ansible-* || true
 
 # Clone nas-ansible repo
-git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || \
-    git clone https://github.com/tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || true
+git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || true
 
 # Create raw bcache cache partition (sda5) — no filesystem, no mount
 LAST_PART_END=$(parted -s /dev/sda unit MiB print | awk '/^ [0-9]/{end=$3} END{print end}' | tr -d 'MiB')
