@@ -2,7 +2,7 @@
 # Automated install to /dev/sda with custom partitioning
 
 text
-url --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-44&arch=x86_64&protocol=http
+%include /tmp/url.ks
 lang en_US.UTF-8
 keyboard --xlayouts='pt'
 timezone Europe/Lisbon --utc
@@ -47,12 +47,24 @@ services --enabled=sshd,NetworkManager
 echo "max_parallel_downloads=10" >> /etc/dnf/dnf.conf
 echo "fastestmirror=True" >> /etc/dnf/dnf.conf
 
+# Hardcoded HTTP mirror for Squid cache hits across repeated installs
+PINNED_HTTP_MIRROR="http://mirror.init7.net/fedora/fedora/linux/releases/44/Everything/x86_64/os/"
+PINNED_MIRROR_BASE="http://mirror.init7.net/fedora/fedora/linux"
+
+# Default: use mirrorlist
+MIRRORLIST="https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-44&arch=x86_64&protocol=http"
+echo "url --mirrorlist=${MIRRORLIST}" > /tmp/url.ks
+
 GATEWAY=$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}')
 if [ -n "$GATEWAY" ]; then
     if curl -s --connect-timeout 3 -o /dev/null -w '%{http_code}' "http://${GATEWAY}:3128/" 2>/dev/null | grep -qE '200|400|403|407'; then
-        echo "proxy=http://${GATEWAY}:3128" >> /etc/dnf/dnf.conf
+        PROXY="http://${GATEWAY}:3128"
+        echo "proxy=${PROXY}" >> /etc/dnf/dnf.conf
+        echo "url --url=${PINNED_HTTP_MIRROR}" > /tmp/url.ks
+        echo "${PINNED_MIRROR_BASE}" > /tmp/pinned-mirror-base
+        echo "${PROXY}" > /tmp/pinned-proxy
         echo "" > /dev/tty1
-        echo ">>> Squid proxy detected at ${GATEWAY}:3128 — using it for package downloads" > /dev/tty1
+        echo ">>> Squid proxy at ${GATEWAY}:3128 — pinned to ${PINNED_HTTP_MIRROR}" > /dev/tty1
         echo "" > /dev/tty1
     else
         echo "" > /dev/tty1
@@ -241,6 +253,25 @@ livecd-tools
 pykickstart
 %end
 
+# Pin installed system repos to single mirror if proxy was used during install
+%post --nochroot
+if [ -f /tmp/pinned-proxy ] && [ -f /tmp/pinned-mirror-base ]; then
+    PROXY=$(cat /tmp/pinned-proxy)
+    MIRROR_BASE=$(cat /tmp/pinned-mirror-base)
+    echo "proxy=${PROXY}" >> /mnt/sysimage/etc/dnf/dnf.conf
+
+    for repo in /mnt/sysimage/etc/yum.repos.d/fedora*.repo; do
+        [ -f "$repo" ] || continue
+        sed -i 's|^metalink=|#metalink=|' "$repo"
+    done
+
+    sed -i "/^\[fedora\]$/a baseurl=${MIRROR_BASE}/releases/\$releasever/Everything/\$basearch/os/" \
+        /mnt/sysimage/etc/yum.repos.d/fedora.repo
+    sed -i "/^\[fedora-updates\]$/a baseurl=${MIRROR_BASE}/updates/\$releasever/Everything/\$basearch/" \
+        /mnt/sysimage/etc/yum.repos.d/fedora-updates.repo
+fi
+%end
+
 # Post-install script
 %post --log=/root/ks-post.log
 set -ex
@@ -249,10 +280,6 @@ set -ex
 echo "max_parallel_downloads=10" >> /etc/dnf/dnf.conf
 echo "fastestmirror=True" >> /etc/dnf/dnf.conf
 
-# Force HTTP-only mirrors for Fedora repos (cacheable by Squid proxy)
-for repo in /etc/yum.repos.d/fedora*.repo; do
-    sed -i 's|^metalink=https://mirrors.fedoraproject.org/metalink?|metalink=https://mirrors.fedoraproject.org/metalink?protocol=http\&|' "$repo"
-done
 
 # Set default target to multi-user (no GUI on boot)
 systemctl set-default multi-user.target
@@ -305,4 +332,15 @@ curl -fsSL https://opencode.ai/install | bash 2>/dev/null || true
 curl -fsSL https://cursor.com/install | bash 2>/dev/null || true
 curl -fsSL https://x.ai/cli/install.sh | bash 2>/dev/null || true
 
+%end
+
+# Prompt user to remove USB before reboot
+%post --nochroot
+echo "" > /dev/tty1
+echo "============================================" > /dev/tty1
+echo "  Installation complete!" > /dev/tty1
+echo "  Please remove the USB key," > /dev/tty1
+echo "  then press ENTER to reboot..." > /dev/tty1
+echo "============================================" > /dev/tty1
+read < /dev/tty1
 %end
