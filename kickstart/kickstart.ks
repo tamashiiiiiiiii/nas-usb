@@ -4,7 +4,7 @@
 text
 %include /tmp/url.ks
 lang en_US.UTF-8
-keyboard --xlayouts='pt'
+keyboard --xlayouts='us'
 timezone Europe/Lisbon --utc
 
 # Network
@@ -143,7 +143,9 @@ tmux
 curl
 wget
 gcc
+gcc-c++
 make
+cmake
 python3-pip
 python3-passlib
 nodejs
@@ -151,6 +153,32 @@ npm
 openssl
 dbus
 rsync
+jq
+bash-completion
+man-db
+tree
+screen
+acl
+attr
+findutils
+which
+file
+bc
+time
+
+# Compression
+xz
+zstd
+unzip
+zip
+
+# SELinux utilities
+setools-console
+setroubleshoot-server
+
+# Firmware & hardware
+lshw
+dmidecode
 
 # Ansible (from Makefile bootstrap)
 ansible-core
@@ -160,7 +188,10 @@ sshpass
 podman
 podman-compose
 podman-docker
+podman-remote
 containernetworking-plugins
+buildah
+skopeo
 
 # Storage & RAID (from roles/mdadm, roles/fstrim, roles/mounts, Makefile disk-prep)
 mdadm
@@ -173,6 +204,12 @@ lsscsi
 nvme-cli
 parted
 gdisk
+e2fsprogs
+cifs-utils
+udisks2
+fuse
+fuse3
+sshfs
 
 # Network services (from roles/samba, roles/netatalk, roles/email-smarthost, roles/unbound, roles/dnsmasq, roles/dns)
 samba
@@ -186,16 +223,29 @@ dnsmasq
 avahi
 avahi-tools
 bind-utils
+net-tools
+traceroute
+nmap-ncat
+tcpdump
+iperf3
+mtr
+whois
+ethtool
+bridge-utils
+iputils
+socat
 
 # File sharing (from roles/ftp, roles/nfs)
 vsftpd
 nfs-utils
+ftp
 
 # Security (from roles/fail2ban, roles/clamav, roles/selinux, roles/audit, roles/lynis)
 fail2ban-server
 fail2ban-sendmail
 clamav
 clamav-update
+clamav-data
 clamd
 policycoreutils-python-utils
 checkpolicy
@@ -203,6 +253,8 @@ python3-libselinux
 authselect
 audit
 lynis
+nftables
+iptables-nft
 
 # Certificates (from roles/certs)
 certbot
@@ -212,6 +264,13 @@ pcp
 pcp-system-tools
 sysstat
 smartmontools
+iotop
+atop
+strace
+lsof
+perf
+procps-ng
+psmisc
 cockpit-ws
 cockpit-system
 cockpit-storaged
@@ -240,6 +299,7 @@ firewalld
 lm_sensors
 ipmitool
 freeipmi
+fancontrol
 
 # Virtualisation (from roles/libvirt)
 libvirt
@@ -251,6 +311,8 @@ virt-install
 mailx
 livecd-tools
 pykickstart
+rclone
+systemd-journal-remote
 %end
 
 # Pin installed system repos to single mirror if proxy was used during install
@@ -283,6 +345,27 @@ echo "fastestmirror=True" >> /etc/dnf/dnf.conf
 
 # Set default target to multi-user (no GUI on boot)
 systemctl set-default multi-user.target
+
+# Enable core services expected by ansible roles
+systemctl enable chronyd || true
+systemctl enable cockpit.socket || true
+systemctl enable smb nmb || true
+systemctl enable nfs-server rpcbind || true
+systemctl enable vsftpd || true
+systemctl enable fail2ban || true
+systemctl enable clamav-freshclam || true
+systemctl enable tuned || true
+systemctl enable pcp pmlogger pmie || true
+systemctl enable sysstat || true
+systemctl enable libvirtd || true
+systemctl enable fstrim.timer || true
+systemctl enable mdmonitor || true
+systemctl enable ledmon || true
+systemctl enable dnsmasq || true
+systemctl enable unbound || true
+systemctl enable postfix || true
+systemctl enable rsyslog || true
+systemctl enable chrony-wait || true
 
 # Enable root login and password authentication via SSH
 sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
@@ -318,19 +401,20 @@ ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null
 GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes" \
     git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || true
 
-# Create raw bcache cache partition (sda5) — no filesystem, no mount
-LAST_PART_END=$(parted -s /dev/sda unit MiB print | awk '/^ [0-9]/{end=$3} END{print end}' | tr -d 'MiB')
-if [ -n "$LAST_PART_END" ]; then
-    parted -s /dev/sda mkpart primary "${LAST_PART_END}MiB" 100% || true
+# Format /dev/sdb as bcache cache device
+if [ -b /dev/sdb ]; then
+    echo ">>> Formatting /dev/sdb as bcache cache device..."
+    wipefs -a /dev/sdb 2>/dev/null || true
+    make-bcache -C /dev/sdb 2>/dev/null || true
+else
+    echo "WARNING: /dev/sdb not found — skipping bcache cache setup"
 fi
 
 # Install AI coding tools (non-interactive, skip failures)
 export NONINTERACTIVE=1
-curl -fsSL https://claude.ai/install.sh | bash -s -- --yes 2>/dev/null || true
+npm install -g @anthropic-ai/claude-code 2>/dev/null || true
 npm install -g @openai/codex 2>/dev/null || true
 curl -fsSL https://opencode.ai/install | bash 2>/dev/null || true
-curl -fsSL https://cursor.com/install | bash 2>/dev/null || true
-curl -fsSL https://x.ai/cli/install.sh | bash 2>/dev/null || true
 
 %end
 

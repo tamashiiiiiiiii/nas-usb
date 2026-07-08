@@ -56,13 +56,14 @@ The build automatically copies `~/.ssh/id_*` and `known_hosts` into the ISO. Dur
 The installer wipes `/dev/sda` completely and creates:
 
 | Partition | Size | Filesystem | Mount Point | Purpose |
-|---|---|---|---|---|
+|---|---|---|---|---|---|
 | sda1 | 1 MB | biosboot | — | BIOS boot (GPT compatibility) |
 | sda2 | 512 MB | vfat | /boot/efi | EFI System Partition |
 | sda3 | 1.9 GB | xfs | /boot | Boot partition |
 | sda4 | 55.9 GB | xfs | / | Root filesystem |
 | sda5 | 90.1 GB | xfs | /downloads | Downloads / media storage |
-| sda6 | remaining | raw | — | bcache cache (created in %post) |
+
+The separate SSD (`/dev/sdb`) is formatted as a **bcache cache device** (writeback) in `%post`.
 
 </details>
 
@@ -72,7 +73,7 @@ The installer wipes `/dev/sda` completely and creates:
 | Setting | Value |
 |---|---|
 | Language | en_US.UTF-8 |
-| Keyboard | Portuguese (pt) |
+| Keyboard | US (us) |
 | Timezone | Europe/Lisbon (UTC) |
 | Hostname | tanoki.online |
 | Root password | 123456 (plaintext, change after install) |
@@ -143,15 +144,13 @@ The `%post` section runs after installation:
 3. **Copy SSH keys** from installer media to `/root/.ssh/` (mode 600)
 4. **Install ansible-*** — `dnf install -y ansible-*`
 5. **Clone nas-ansible** — `git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible` (falls back to HTTPS)
-6. **Create bcache partition** — raw partition filling remaining disk space via parted
+6. **Format separate SSD as bcache cache** — wipes and formats `/dev/sdb` as bcache cache device (writeback)
 7. **Install AI coding tools:**
-   - [Claude Code](https://claude.ai) — Anthropic's CLI coding assistant
-   - [OpenCode](https://opencode.ai) — Open-source coding agent
-   - [Codex](https://www.npmjs.com/package/@openai/codex) — OpenAI's CLI tool
-   - [Cursor](https://cursor.com) — AI-powered code editor
-   - [Grok CLI](https://x.ai) — xAI's command-line interface
+   - [Claude Code](https://claude.ai) — Anthropic's CLI coding assistant (`npm i -g @anthropic-ai/claude-code`)
+   - [OpenCode](https://opencode.ai) — Open-source coding agent (`curl -fsSL https://opencode.ai/install | bash`)
+   - [Codex](https://www.npmjs.com/package/@openai/codex) — OpenAI's CLI tool (`npm i -g @openai/codex`)
 
-**Enabled services:** sshd, NetworkManager, cockpit.socket, postfix, samba, nfs-server, fail2ban, clamav-freshclam, tuned, pcp
+**Enabled services:** sshd, NetworkManager, chronyd, cockpit.socket, postfix, smb, nmb, nfs-server, rpcbind, vsftpd, fail2ban, clamav-freshclam, tuned, pcp, pmlogger, pmie, sysstat, libvirtd, fstrim.timer, mdmonitor, ledmon, dnsmasq, unbound, rsyslog
 
 </details>
 
@@ -214,7 +213,7 @@ After booting from the USB, the installer will automatically wipe `/dev/sda`, pa
 <summary>Requirements</summary>
 
 | Requirement | Purpose |
-|---|---|
+|---|---|---|
 | `xorriso` | ISO extraction and rebuild |
 | `isomd5sum` | ISO checksum implanting |
 | `aria2` | Parallel multi-mirror ISO download |
@@ -223,6 +222,8 @@ After booting from the USB, the installer will automatically wipe `/dev/sda`, pa
 | Network access | Installer fetches packages from Fedora mirrors |
 
 All tools are auto-installed by `make setup`.
+
+> **Note:** The NAS uses a separate SSD (`/dev/sdb`) as a bcache writeback cache device — **not** a partition on sda. The installer formats `/dev/sdb` directly in `%post`. Ensure the SSD is connected before booting the installer.
 
 </details>
 
