@@ -4,7 +4,7 @@
 text
 %include /tmp/url.ks
 lang en_US.UTF-8
-keyboard --xlayouts='us'
+keyboard --xlayouts='pt'
 timezone Europe/Lisbon --utc
 
 # Network
@@ -26,14 +26,14 @@ bootloader --location=mbr --boot-drive=sda
 
 # Disk partitioning — wipe sda completely
 zerombr
-clearpart --all --drives=sda --initlabel
+clearpart --all --drives=sda,sdb --initlabel
 ignoredisk --only-use=sda
 
 part biosboot   --fstype=biosboot --size=1 --ondisk=sda
 part /boot/efi  --fstype=efi  --size=512   --ondisk=sda
 part /boot      --fstype=xfs  --size=1946  --ondisk=sda
 part /          --fstype=xfs  --size=57242 --ondisk=sda
-part /downloads --fstype=xfs  --size=92262 --ondisk=sda
+part /downloads --fstype=xfs  --size=92262 --grow --ondisk=sda
 
 # Default boot target — multi-user (no GUI on boot)
 skipx
@@ -182,6 +182,7 @@ dmidecode
 
 # Ansible (from Makefile bootstrap)
 ansible-core
+ansible-*
 sshpass
 
 # Container runtime (from roles/podman)
@@ -346,27 +347,6 @@ echo "fastestmirror=True" >> /etc/dnf/dnf.conf
 # Set default target to multi-user (no GUI on boot)
 systemctl set-default multi-user.target
 
-# Enable core services expected by ansible roles
-systemctl enable chronyd || true
-systemctl enable cockpit.socket || true
-systemctl enable smb nmb || true
-systemctl enable nfs-server rpcbind || true
-systemctl enable vsftpd || true
-systemctl enable fail2ban || true
-systemctl enable clamav-freshclam || true
-systemctl enable tuned || true
-systemctl enable pcp pmlogger pmie || true
-systemctl enable sysstat || true
-systemctl enable libvirtd || true
-systemctl enable fstrim.timer || true
-systemctl enable mdmonitor || true
-systemctl enable ledmon || true
-systemctl enable dnsmasq || true
-systemctl enable unbound || true
-systemctl enable postfix || true
-systemctl enable rsyslog || true
-systemctl enable chrony-wait || true
-
 # Enable root login and password authentication via SSH
 sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
 sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
@@ -393,19 +373,21 @@ chmod 700 /root/.ssh
 chmod 600 /root/.ssh/* 2>/dev/null
 for f in /root/.ssh/*.pub; do [ -f "$f" ] && chmod 644 "$f"; done
 
-# Install all ansible packages (wildcard)
-dnf install -y ansible-* || true
-
 # Clone nas-ansible repo (SSH only, non-interactive)
 ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null
 GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes" \
     git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || true
 
-# Format /dev/sdb as bcache cache device
+# Format /dev/sdb as bcache cache device (only if it's an SSD)
 if [ -b /dev/sdb ]; then
-    echo ">>> Formatting /dev/sdb as bcache cache device..."
-    wipefs -a /dev/sdb 2>/dev/null || true
-    make-bcache -C /dev/sdb 2>/dev/null || true
+    ROTATIONAL=$(cat /sys/block/sdb/queue/rotational 2>/dev/null || echo "1")
+    if [ "$ROTATIONAL" = "0" ]; then
+        echo ">>> Formatting /dev/sdb as bcache cache device..."
+        wipefs -a /dev/sdb 2>/dev/null || true
+        make-bcache -C /dev/sdb 2>/dev/null || true
+    else
+        echo "WARNING: /dev/sdb is an HDD (rotational), skipping bcache cache setup"
+    fi
 else
     echo "WARNING: /dev/sdb not found — skipping bcache cache setup"
 fi
