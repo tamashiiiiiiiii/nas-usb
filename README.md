@@ -28,7 +28,7 @@ nas-usb/
 <details>
 <summary>SSH Keys</summary>
 
-The build automatically copies `~/.ssh/id_*` and `known_hosts` into the ISO. During install, the kickstart `%post` copies them to `/root/.ssh/` (mode 600), enabling `git clone` of the nas-ansible repo via SSH. No manual key copying needed.
+The build automatically copies `~/.ssh/id_*` and `known_hosts` into the ISO. During install, the kickstart `%post` copies them to `/root/.ssh/` (mode 600), enabling `git clone` of the nas-ansible repository via SSH. No manual key copying needed.
 
 </details>
 
@@ -148,7 +148,7 @@ The `%post` section runs after installation:
 7. **Install AI coding tools:**
    - [Claude Code](https://claude.ai) — Anthropic's CLI coding assistant (`npm i -g @anthropic-ai/claude-code`)
    - [OpenCode](https://opencode.ai) — Open-source coding agent (`curl -fsSL https://opencode.ai/install | bash`)
-   - [Codex](https://www.npmjs.com/package/@openai/codex) — OpenAI's CLI tool (`npm i -g @openai/codex`)
+   - [Codex](https://www.npmjs.com/package/@openai/codex) — OpenAI's command-line tool (`npm i -g @openai/codex`)
 
 **Enabled services:** sshd, NetworkManager, chronyd, cockpit.socket, postfix, smb, nmb, nfs-server, rpcbind, vsftpd, fail2ban, clamav-freshclam, tuned, pcp, pmlogger, pmie, sysstat, libvirtd, fstrim.timer, mdmonitor, ledmon, dnsmasq, unbound, rsyslog
 
