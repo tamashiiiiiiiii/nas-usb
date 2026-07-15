@@ -13,7 +13,7 @@ Output: `build/tanoki.iso` — bootable Fedora netinstall that auto-partitions `
 <details>
 <summary>Project Structure</summary>
 
-```
+```text
 nas-usb/
 ├── kickstart/           # Kickstart configuration files
 │   └── kickstart.ks     # Main kickstart (partitioning, packages, post-install)
