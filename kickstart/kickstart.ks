@@ -26,13 +26,15 @@ bootloader --location=mbr --boot-drive=sda
 
 # Disk partitioning — wipe sda completely
 zerombr
-clearpart --all --drives=sda,sdb --initlabel
+clearpart --all --drives=sda --initlabel
 ignoredisk --only-use=sda
 
 part biosboot   --fstype=biosboot --size=1 --ondisk=sda
 part /boot/efi  --fstype=efi  --size=512   --ondisk=sda
 part /boot      --fstype=xfs  --size=1946  --ondisk=sda
-part /          --fstype=xfs  --size=57242 --ondisk=sda
+part /          --fstype=xfs  --size=25000 --ondisk=sda
+part /var       --fstype=xfs  --size=50000 --ondisk=sda
+part /home      --fstype=xfs  --size=2000 --ondisk=sda
 part /downloads --fstype=xfs  --size=92262 --grow --ondisk=sda
 
 # Default boot target — multi-user (no GUI on boot)
