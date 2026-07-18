@@ -200,7 +200,7 @@ endif
 	sync
 	sudo eject $(DEV) || true
 	@echo ""
-	@echo "=== Done. USB drive ejected. Safe to remove. ===
+	@echo "=== Done. USB drive ejected. Safe to remove. ==="
 
 eject: ## Safely eject a USB device (requires DEV=/dev/sdX)
 ifndef DEV
