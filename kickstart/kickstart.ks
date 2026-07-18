@@ -35,7 +35,7 @@ part /boot      --fstype=xfs  --size=1946  --ondisk=sda
 part /          --fstype=xfs  --size=25000 --ondisk=sda
 part /var       --fstype=xfs  --size=50000 --ondisk=sda
 part /home      --fstype=xfs  --size=2000 --ondisk=sda
-part /downloads --fstype=xfs  --size=92262 --grow --ondisk=sda
+part /mtn/downloads --fstype=xfs  --size=92262 --grow --ondisk=sda
 
 # Default boot target — multi-user (no GUI on boot)
 skipx
