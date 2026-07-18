@@ -391,6 +391,7 @@ sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd
 
 # Clone nas-ansible repo (SSH keys already installed by --nochroot)
 ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null
+rm -rf /opt/nas-ansible
 GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes" \
     git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || true
 # Ensure vault_pass is in the repo dir even if clone partially succeeded
