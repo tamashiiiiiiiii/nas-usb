@@ -307,6 +307,71 @@ if [ -f /tmp/pinned-proxy ] && [ -f /tmp/pinned-mirror-base ]; then
     sed -i "/^\[fedora-updates\]$/a baseurl=${MIRROR_BASE}/updates/\$releasever/Everything/\$basearch/" \
         /mnt/sysimage/etc/yum.repos.d/fedora-updates.repo
 fi
+
+# Copy SSH keys from install media to target system (media is still mounted here)
+TARGET=/mnt/sysimage
+mkdir -p "$TARGET/root/.ssh"
+chmod 700 "$TARGET/root/.ssh"
+
+# Try Anaconda source paths
+for d in /run/install/repo /run/install/isodir /mnt/install/source; do
+    if [ -d "$d/ssh-keys" ]; then
+        cp "$d/ssh-keys"/* "$TARGET/root/.ssh/" 2>/dev/null
+        break
+    fi
+done
+
+# Fallback: mount iso9660 devices directly
+if [ ! -f "$TARGET/root/.ssh/id_rsa" ]; then
+    for dev in $(blkid -t TYPE=iso9660 -o device 2>/dev/null); do
+        TMPMNT=$(mktemp -d)
+        mount -o ro "$dev" "$TMPMNT" 2>/dev/null
+        if [ -d "$TMPMNT/ssh-keys" ]; then
+            cp "$TMPMNT/ssh-keys"/* "$TARGET/root/.ssh/" 2>/dev/null
+            umount "$TMPMNT" 2>/dev/null
+            rmdir "$TMPMNT"
+            break
+        fi
+        umount "$TMPMNT" 2>/dev/null
+        rmdir "$TMPMNT"
+    done
+fi
+
+# Also copy to nas user
+mkdir -p "$TARGET/home/nas/.ssh"
+cp "$TARGET/root/.ssh"/* "$TARGET/home/nas/.ssh/" 2>/dev/null
+chown -R 1000:1000 "$TARGET/home/nas/.ssh" 2>/dev/null
+
+chmod 600 "$TARGET/root/.ssh/id_rsa" 2>/dev/null
+chmod 644 "$TARGET/root/.ssh"/*.pub 2>/dev/null
+
+# Copy vault_pass from install media
+VAULT_SRC=""
+if [ -f "$TARGET/root/.ssh/vault_pass" ]; then
+    VAULT_SRC="$TARGET/root/.ssh/vault_pass"
+fi
+if [ -z "$VAULT_SRC" ]; then
+    for dev in $(blkid -t TYPE=iso9660 -o device 2>/dev/null); do
+        [ -n "$VAULT_SRC" ] && break
+        TMPMNT=$(mktemp -d)
+        mount -o ro "$dev" "$TMPMNT" 2>/dev/null
+        if [ -f "$TMPMNT/ssh-keys/vault_pass" ]; then
+            VAULT_SRC="$TMPMNT/ssh-keys/vault_pass"
+        fi
+        umount "$TMPMNT" 2>/dev/null
+        rmdir "$TMPMNT"
+    done
+fi
+if [ -n "$VAULT_SRC" ]; then
+    mkdir -p "$TARGET/opt/nas-ansible"
+    cp "$VAULT_SRC" "$TARGET/opt/nas-ansible/.vault_pass" 2>/dev/null
+    chmod 600 "$TARGET/opt/nas-ansible/.vault_pass" 2>/dev/null
+    cp "$VAULT_SRC" "$TARGET/root/.vault_pass" 2>/dev/null
+    chmod 600 "$TARGET/root/.vault_pass" 2>/dev/null
+    echo ">>> vault_pass installed" > /dev/tty5
+else
+    echo ">>> WARNING: vault_pass not found on media" > /dev/tty5
+fi
 %end
 
 # Post-install script
@@ -317,7 +382,6 @@ set -ex
 echo "max_parallel_downloads=10" >> /etc/dnf/dnf.conf
 echo "fastestmirror=True" >> /etc/dnf/dnf.conf
 
-
 # Set default target to multi-user (no GUI on boot)
 systemctl set-default multi-user.target
 
@@ -325,64 +389,13 @@ systemctl set-default multi-user.target
 sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
 sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
-# Copy SSH keys and vault_pass from installer media
-mkdir -p /root/.ssh
-for d in /run/install/repo /run/install/isodir /mnt/install/source; do
-    if [ -d "$d/ssh-keys" ]; then
-        cp "$d/ssh-keys"/* /root/.ssh/ 2>/dev/null
-        break
-    fi
-done
-# Fallback: mount USB/CDROM directly and copy from there
-if [ ! -f /root/.ssh/id_rsa ]; then
-    for dev in $(blkid -t TYPE=iso9660 -o device 2>/dev/null); do
-        TMPMNT=$(mktemp -d)
-        mount -o ro "$dev" "$TMPMNT" 2>/dev/null
-        if [ -d "$TMPMNT/ssh-keys" ]; then
-            cp "$TMPMNT/ssh-keys"/* /root/.ssh/ 2>/dev/null
-            umount "$TMPMNT" 2>/dev/null
-            rmdir "$TMPMNT"
-            break
-        fi
-        umount "$TMPMNT" 2>/dev/null
-        rmdir "$TMPMNT"
-    done
-fi
-chmod 700 /root/.ssh
-chmod 600 /root/.ssh/id_rsa 2>/dev/null
-chmod 644 /root/.ssh/*.pub 2>/dev/null
-
-# Copy vault_pass into nas-ansible location if present on media
-if [ -f /root/.ssh/vault_pass ]; then
-    VAULT_SRC=/root/.ssh/vault_pass
-fi
-for dev in $(blkid -t TYPE=iso9660 -o device 2>/dev/null); do
-    [ -n "$VAULT_SRC" ] && break
-    TMPMNT=$(mktemp -d)
-    mount -o ro "$dev" "$TMPMNT" 2>/dev/null
-    if [ -f "$TMPMNT/ssh-keys/vault_pass" ]; then
-        VAULT_SRC="$TMPMNT/ssh-keys/vault_pass"
-    fi
-    umount "$TMPMNT" 2>/dev/null
-    rmdir "$TMPMNT"
-done
-if [ -n "$VAULT_SRC" ]; then
-    cp "$VAULT_SRC" /opt/nas-ansible/.vault_pass 2>/dev/null
-    chmod 600 /opt/nas-ansible/.vault_pass 2>/dev/null
-    cp "$VAULT_SRC" /root/.vault_pass 2>/dev/null
-    chmod 600 /root/.vault_pass 2>/dev/null
-    echo ">>> vault_pass installed"
-else
-    echo ">>> WARNING: vault_pass not found on media — ansible vault will fail"
-fi
-
-# Clone nas-ansible repo (SSH only, non-interactive)
+# Clone nas-ansible repo (SSH keys already installed by --nochroot)
 ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null
 GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes" \
     git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || true
 # Ensure vault_pass is in the repo dir even if clone partially succeeded
-if [ -n "$VAULT_SRC" ] && [ -d /opt/nas-ansible ]; then
-    cp "$VAULT_SRC" /opt/nas-ansible/.vault_pass 2>/dev/null
+if [ -f /root/.vault_pass ] && [ -d /opt/nas-ansible ]; then
+    cp /root/.vault_pass /opt/nas-ansible/.vault_pass 2>/dev/null
     chmod 600 /opt/nas-ansible/.vault_pass 2>/dev/null
 fi
 
