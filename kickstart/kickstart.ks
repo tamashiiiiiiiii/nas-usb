@@ -1,4 +1,4 @@
-# Fedora NAS Workstation Kickstart
+# Fedora NAS Server Kickstart
 # Automated install to /dev/sda with custom partitioning
 
 text
@@ -105,37 +105,9 @@ reboot --eject
 %packages --ignoremissing
 
 # Base environment
-@^workstation-product-environment
-
-# Desktop environments and apps
-@office
-@kde-media
-@kde-software-development
-@libreoffice
-@mate-applications
-@network-server
-@sound-and-video
-@system-tools
-@window-managers
-@design-suite
-@audio
-@budgie-desktop
-@budgie-desktop-apps
-@c-development
-@cloud-management
-@container-management
-@cosmic-desktop
-@cosmic-desktop-apps
-@admin-tools
-@desktop-accessibility
+@^server-product-environment
 @development-tools
-@editors
-@games
-@kde-apps
-@kde-desktop
-
-# Media
-vlc
+@container-management
 
 # Core tools
 vim
@@ -353,32 +325,66 @@ systemctl set-default multi-user.target
 sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
 sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
-# Copy SSH keys from installer media (placed by Makefile)
+# Copy SSH keys and vault_pass from installer media
 mkdir -p /root/.ssh
-CDROM=$(blkid -t TYPE=iso9660 -o device 2>/dev/null | head -1)
-if [ -n "$CDROM" ]; then
-    MNTDIR=$(mktemp -d)
-    mount -o ro "$CDROM" "$MNTDIR" 2>/dev/null
-    if [ -d "$MNTDIR/ssh-keys" ]; then
-        cp "$MNTDIR/ssh-keys"/* /root/.ssh/
-    fi
-    umount "$MNTDIR" 2>/dev/null
-    rmdir "$MNTDIR"
-fi
 for d in /run/install/repo /run/install/isodir /mnt/install/source; do
     if [ -d "$d/ssh-keys" ]; then
         cp "$d/ssh-keys"/* /root/.ssh/ 2>/dev/null
         break
     fi
 done
+# Fallback: mount USB/CDROM directly and copy from there
+if [ ! -f /root/.ssh/id_rsa ]; then
+    for dev in $(blkid -t TYPE=iso9660 -o device 2>/dev/null); do
+        TMPMNT=$(mktemp -d)
+        mount -o ro "$dev" "$TMPMNT" 2>/dev/null
+        if [ -d "$TMPMNT/ssh-keys" ]; then
+            cp "$TMPMNT/ssh-keys"/* /root/.ssh/ 2>/dev/null
+            umount "$TMPMNT" 2>/dev/null
+            rmdir "$TMPMNT"
+            break
+        fi
+        umount "$TMPMNT" 2>/dev/null
+        rmdir "$TMPMNT"
+    done
+fi
 chmod 700 /root/.ssh
-chmod 600 /root/.ssh/* 2>/dev/null
-for f in /root/.ssh/*.pub; do [ -f "$f" ] && chmod 644 "$f"; done
+chmod 600 /root/.ssh/id_rsa 2>/dev/null
+chmod 644 /root/.ssh/*.pub 2>/dev/null
+
+# Copy vault_pass into nas-ansible location if present on media
+if [ -f /root/.ssh/vault_pass ]; then
+    VAULT_SRC=/root/.ssh/vault_pass
+fi
+for dev in $(blkid -t TYPE=iso9660 -o device 2>/dev/null); do
+    [ -n "$VAULT_SRC" ] && break
+    TMPMNT=$(mktemp -d)
+    mount -o ro "$dev" "$TMPMNT" 2>/dev/null
+    if [ -f "$TMPMNT/ssh-keys/vault_pass" ]; then
+        VAULT_SRC="$TMPMNT/ssh-keys/vault_pass"
+    fi
+    umount "$TMPMNT" 2>/dev/null
+    rmdir "$TMPMNT"
+done
+if [ -n "$VAULT_SRC" ]; then
+    cp "$VAULT_SRC" /opt/nas-ansible/.vault_pass 2>/dev/null
+    chmod 600 /opt/nas-ansible/.vault_pass 2>/dev/null
+    cp "$VAULT_SRC" /root/.vault_pass 2>/dev/null
+    chmod 600 /root/.vault_pass 2>/dev/null
+    echo ">>> vault_pass installed"
+else
+    echo ">>> WARNING: vault_pass not found on media — ansible vault will fail"
+fi
 
 # Clone nas-ansible repo (SSH only, non-interactive)
 ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null
 GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes" \
     git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || true
+# Ensure vault_pass is in the repo dir even if clone partially succeeded
+if [ -n "$VAULT_SRC" ] && [ -d /opt/nas-ansible ]; then
+    cp "$VAULT_SRC" /opt/nas-ansible/.vault_pass 2>/dev/null
+    chmod 600 /opt/nas-ansible/.vault_pass 2>/dev/null
+fi
 
 # Format /dev/sdb as bcache cache device (only if it's an SSD)
 if [ -b /dev/sdb ]; then

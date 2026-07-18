@@ -16,6 +16,7 @@ SHELL := /bin/bash
 
 FEDORA_VER := 44
 FEDORA_REL := 1.7
+ISO_LABEL := Fedora-E-dvd-x86_64-44
 ARCH := x86_64
 ISO_NAME := Fedora-Everything-netinst-$(ARCH)-$(FEDORA_VER)-$(FEDORA_REL).iso
 CHECKSUM_NAME := Fedora-Everything-$(FEDORA_VER)-$(FEDORA_REL)-$(ARCH)-CHECKSUM
@@ -107,6 +108,11 @@ build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 	cp $(SSH_DIR)/id_* $(WORK_DIR)/ssh-keys/
 	cp $(SSH_DIR)/known_hosts $(WORK_DIR)/ssh-keys/ 2>/dev/null || true
 	@echo "  Copied: $$(ls $(WORK_DIR)/ssh-keys/)"
+	@# Copy vault_pass if available
+	@if [ -f ../nas-ansible/.vault_pass ]; then \
+		cp ../nas-ansible/.vault_pass $(WORK_DIR)/ssh-keys/vault_pass; \
+		echo "  Copied vault_pass from nas-ansible"; \
+	fi
 	@# Step 3b: Inject Anaconda cyberpunk theme
 	@echo "  Injecting cyberpunk theme..."
 	@if [ -f theme/tanoki-cyberpunk.css ]; then \
@@ -118,17 +124,17 @@ build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 	@echo "[4/6] Patching boot configuration..."
 	@# Patch isolinux (BIOS boot) — netinstall ISOs
 	@if [ -f $(WORK_DIR)/isolinux/isolinux.cfg ]; then \
-		sed -i '/inst\.ks/!s|append |append inst.ks=cdrom:/ks.cfg |' $(WORK_DIR)/isolinux/isolinux.cfg; \
+		sed -i '/inst\.ks/!s|append |append inst.ks=hd:LABEL=$(ISO_LABEL):/ks.cfg |' $(WORK_DIR)/isolinux/isolinux.cfg; \
 		echo "  Patched: isolinux/isolinux.cfg"; \
 	fi
 	@if [ -f $(WORK_DIR)/isolinux/grub.conf ]; then \
-		sed -i '/inst\.ks/!s|append |append inst.ks=cdrom:/ks.cfg |' $(WORK_DIR)/isolinux/grub.conf; \
+		sed -i '/inst\.ks/!s|append |append inst.ks=hd:LABEL=$(ISO_LABEL):/ks.cfg |' $(WORK_DIR)/isolinux/grub.conf; \
 		echo "  Patched: isolinux/grub.conf"; \
 	fi
 	@# Patch GRUB — add inst.ks, set timeout=0, default=0 for instant boot
 	@for grubcfg in $(WORK_DIR)/EFI/BOOT/grub.cfg $(WORK_DIR)/boot/grub2/grub.cfg; do \
 		if [ -f "$$grubcfg" ]; then \
-			sed -i '/inst\.ks/!{/linux.*vmlinuz/s|quiet|inst.ks=cdrom:/ks.cfg quiet|}' "$$grubcfg"; \
+			sed -i '/inst\.ks/!{/linux.*vmlinuz/s|quiet|inst.ks=hd:LABEL=$(ISO_LABEL):/ks.cfg quiet|}' "$$grubcfg"; \
 			sed -i 's/^set timeout=.*/set timeout=0/' "$$grubcfg"; \
 			sed -i 's/^set default=.*/set default="0"/' "$$grubcfg"; \
 			echo "  Patched: $$(echo $$grubcfg | sed 's|.*/iso-root/||')"; \
@@ -137,7 +143,7 @@ build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 	@# Step 5: Rebuild ISO with xorriso (BIOS + UEFI hybrid)
 	@echo "[5/6] Rebuilding ISO..."
 	xorriso -as mkisofs \
-		-V "Fedora-E-dvd-x86_64-44" \
+		-V "$(ISO_LABEL)" \
 		-o $(ISO_OUT) \
 		-b images/eltorito.img \
 		-no-emul-boot \
