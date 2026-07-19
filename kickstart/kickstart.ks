@@ -378,6 +378,9 @@ fi
 %post --log=/root/ks-post.log
 set -ex
 
+# Select authselect profile with account lockout
+authselect select local with-faillock without-nullok --force
+
 # Parallel DNF downloads on installed system
 echo "max_parallel_downloads=10" >> /etc/dnf/dnf.conf
 echo "fastestmirror=True" >> /etc/dnf/dnf.conf
