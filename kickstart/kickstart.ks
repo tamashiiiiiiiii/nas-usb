@@ -101,6 +101,9 @@ if [ -n "$CDROM_DEV" ]; then
 fi
 %end
 
+%addon com_redhat_kdump --enable --reserve-mb='512'
+%end
+
 # Reboot after install
 reboot --eject
 
