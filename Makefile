@@ -9,8 +9,12 @@
 #   make check-iso                     # verify checksum
 #   make build                         # build custom ISO
 #   make flash DEV=/dev/sdX            # write to USB + sync + eject
+#   make vm-create                     # create test VM with SATA disks
+#   make vm-start                      # boot the VM
+#   make vm-stop                       # graceful shutdown
+#   make vm-destroy                    # remove VM + disk images
 #
-# Requirements: xorriso, isomd5sum, aria2
+# Requirements: xorriso, isomd5sum, aria2, qemu-kvm, libvirt, virt-install
 
 SHELL := /bin/bash
 
@@ -27,15 +31,20 @@ OUTPUT_ISO := tanoki.iso
 ISO_DIR := iso
 KS_DIR := kickstart
 SSH_DIR := $(HOME)/.ssh
+VAULT_PASS := ../nas-ansible/.vault_pass
 BUILD_DIR := build
 WORK_DIR := $(BUILD_DIR)/iso-root
+VM_DIR := $(CURDIR)/vm
+VM_NAME := tanoki
+VM_XML := $(VM_DIR)/tanoki.xml
 
 ISO_SRC := $(ISO_DIR)/source.iso
 ISO_OUT := $(BUILD_DIR)/$(OUTPUT_ISO)
 KS_FILE := $(KS_DIR)/kickstart.ks
 
 .DEFAULT_GOAL := help
-.PHONY: help setup build clean clean-all check-iso validate-ks download flash eject
+.PHONY: help setup build clean clean-all check-iso validate-ks download flash iso eject \
+       vm-create vm-start vm-stop vm-destroy vm-console
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -98,20 +107,30 @@ build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 	@# Step 2: Inject kickstart file
 	@echo "[2/6] Injecting kickstart..."
 	cp $(KS_FILE) $(WORK_DIR)/ks.cfg
-	@# Step 3: Copy SSH keys into ISO
-	@echo "[3/6] Embedding SSH keys from ~/.ssh/..."
-	@if ! ls $(SSH_DIR)/id_* >/dev/null 2>&1; then \
-		echo "ERROR: No SSH keys found in ~/.ssh/."; \
-		exit 1; \
-	fi
+	@# Step 3: Copy all SSH keys + build authorized_keys
+	@echo "[3/6] Embedding SSH keys from $(SSH_DIR)/..."
 	mkdir -p $(WORK_DIR)/ssh-keys
-	cp $(SSH_DIR)/id_* $(WORK_DIR)/ssh-keys/
-	cp $(SSH_DIR)/known_hosts $(WORK_DIR)/ssh-keys/ 2>/dev/null || true
-	@echo "  Copied: $$(ls $(WORK_DIR)/ssh-keys/)"
-	@# Copy vault_pass if available
-	@if [ -f ../nas-ansible/.vault_pass ]; then \
-		cp ../nas-ansible/.vault_pass $(WORK_DIR)/ssh-keys/vault_pass; \
-		echo "  Copied vault_pass from nas-ansible"; \
+	@for f in $(SSH_DIR)/*; do \
+		[ -f "$$f" ] || continue; \
+		case "$$(basename $$f)" in \
+			*.old|config|*.swp) continue ;; \
+		esac; \
+		cp "$$f" $(WORK_DIR)/ssh-keys/; \
+		echo "  Copied: $$(basename $$f)"; \
+	done
+	@grep -rl '^ssh-\|^ecdsa-\|^sk-ssh-' $(WORK_DIR)/ssh-keys/ 2>/dev/null \
+		| xargs cat > $(WORK_DIR)/ssh-keys/authorized_keys 2>/dev/null || true
+	@if [ -s $(WORK_DIR)/ssh-keys/authorized_keys ]; then \
+		echo "  Built authorized_keys ($$(wc -l < $(WORK_DIR)/ssh-keys/authorized_keys) keys)"; \
+	else \
+		echo "  WARNING: no public keys found for authorized_keys"; \
+	fi
+	@# Copy vault_pass if configured and available
+	@if [ -n "$(VAULT_PASS)" ] && [ -f "$(VAULT_PASS)" ]; then \
+		cp "$(VAULT_PASS)" $(WORK_DIR)/ssh-keys/vault_pass; \
+		echo "  Copied vault_pass"; \
+	elif [ -n "$(VAULT_PASS)" ]; then \
+		echo "  WARNING: $(VAULT_PASS) not found, skipping"; \
 	fi
 	@# Step 3b: Inject Anaconda cyberpunk theme
 	@echo "  Injecting cyberpunk theme..."
@@ -166,8 +185,9 @@ build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 	@echo "=== Build complete ==="
 	@echo "Output: $(ISO_OUT) ($$(du -h $(ISO_OUT) | cut -f1))"
 	@echo ""
-	@echo "To write to USB, run:  make flash DEV=/dev/sdX"
-	@echo "  (identify your USB device first with: lsblk -d -o NAME,SIZE,MODEL,TRAN)"
+	@echo "To write to USB:  make flash DEV=/dev/sdX"
+	@echo "To copy ISO out:  make iso [DEST=/path/to/output.iso]"
+	@echo "  (identify your USB device with: lsblk -d -o NAME,SIZE,MODEL,TRAN)"
 
 flash: ## Write ISO to USB drive (requires DEV=/dev/sdX) — DESTRUCTIVE
 ifndef DEV
@@ -208,6 +228,12 @@ endif
 	@echo ""
 	@echo "=== Done. USB drive ejected. Safe to remove. ==="
 
+iso: build ## Copy built ISO to current directory (or DEST=/path/to/file.iso)
+	@cp $(ISO_OUT) $(or $(DEST),./$(OUTPUT_ISO))
+	@echo ""
+	@echo "=== ISO copied ==="
+	@echo "Output: $(or $(DEST),./$(OUTPUT_ISO)) ($$(du -h $(or $(DEST),./$(OUTPUT_ISO)) | cut -f1))"
+
 eject: ## Safely eject a USB device (requires DEV=/dev/sdX)
 ifndef DEV
 	@echo "Usage: make eject DEV=/dev/sdX"
@@ -224,3 +250,58 @@ clean: ## Remove build artifacts
 clean-all: clean ## Remove build artifacts and downloaded ISOs
 	rm -f $(ISO_DIR)/*.iso $(ISO_DIR)/*.aria2 $(ISO_DIR)/*-CHECKSUM
 	@echo "Cleaned all."
+
+# ── VM targets (QEMU/KVM with SATA disks for kickstart compatibility) ────
+
+vm-create: ## Create test VM: qcow2 disks + define from XML
+	@if [ ! -f "$(OUTPUT_ISO)" ]; then echo "ERROR: ./$(OUTPUT_ISO) not found. Run 'make iso' first."; exit 1; fi
+	@echo "=== Creating $(VM_NAME) VM ==="
+	@if sudo virsh dominfo $(VM_NAME) >/dev/null 2>&1; then \
+		echo "ERROR: VM '$(VM_NAME)' already exists. Run 'make vm-destroy' first."; exit 1; \
+	fi
+	@echo "[1/4] Creating disk images..."
+	qemu-img create -f qcow2 $(VM_DIR)/tanoki-sda.qcow2 200G
+	qemu-img create -f qcow2 $(VM_DIR)/tanoki-sdb.qcow2 50G
+	@for d in sdc sdd sde sdf sdg; do \
+		qemu-img create -f qcow2 $(VM_DIR)/tanoki-$$d.qcow2 20G; \
+	done
+	@echo "[2/4] Copying ISO into vm/..."
+	cp $(OUTPUT_ISO) $(VM_DIR)/tanoki.iso
+	@echo "[3/4] Generating VM definition..."
+	sed -e 's|@@VM_DIR@@|$(VM_DIR)|g' \
+	    $(VM_XML) > $(BUILD_DIR)/tanoki-vm.xml
+	@echo "[4/4] Defining VM..."
+	sudo virsh define $(BUILD_DIR)/tanoki-vm.xml
+	@echo ""
+	@echo "=== VM '$(VM_NAME)' created ==="
+	@echo "  Disks: sda(200G) sdb(50G) sdc-sdg(20G each)"
+	@echo "  ISO:   vm/tanoki.iso"
+	@echo ""
+	@echo "Run 'make vm-start' to boot."
+
+vm-start: ## Start the VM and open SPICE console
+	@if ! sudo virsh dominfo $(VM_NAME) >/dev/null 2>&1; then \
+		echo "ERROR: VM '$(VM_NAME)' not defined. Run 'make vm-create' first."; exit 1; \
+	fi
+	sudo virsh start $(VM_NAME)
+	@echo "VM '$(VM_NAME)' started."
+	@echo "Opening console... (close the viewer window to detach)"
+	@sleep 1
+	virt-viewer --connect qemu:///system $(VM_NAME) &
+
+vm-stop: ## Graceful shutdown of the VM
+	sudo virsh shutdown $(VM_NAME)
+	@echo "Shutdown signal sent to '$(VM_NAME)'."
+
+vm-destroy: ## Force stop + undefine VM + delete disk images — DESTRUCTIVE
+	@echo "This will permanently delete VM '$(VM_NAME)' and all its disk images."
+	@read -p "Type 'yes' to confirm: " confirm; \
+	if [ "$$confirm" != "yes" ]; then echo "Aborted."; exit 1; fi
+	-sudo virsh destroy $(VM_NAME) 2>/dev/null
+	-sudo virsh undefine $(VM_NAME) --snapshots-metadata 2>/dev/null
+	rm -f $(VM_DIR)/tanoki-sd*.qcow2 $(VM_DIR)/tanoki.iso
+	rm -f $(BUILD_DIR)/tanoki-vm.xml
+	@echo "VM '$(VM_NAME)' removed."
+
+vm-console: ## Open SPICE console to running VM
+	virt-viewer --connect qemu:///system $(VM_NAME)
