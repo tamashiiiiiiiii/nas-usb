@@ -139,6 +139,7 @@ which
 file
 bc
 time
+util-linux-script
 
 # Compression
 xz
