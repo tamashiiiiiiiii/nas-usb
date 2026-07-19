@@ -354,6 +354,7 @@ for f in "$TARGET/root/.ssh"/*; do
     fi
 done
 chmod 600 "$TARGET/root/.ssh/authorized_keys" 2>/dev/null
+chmod 600 "$TARGET/root/.ssh/config" 2>/dev/null
 
 # Also copy to nas user
 mkdir -p "$TARGET/home/nas/.ssh"
@@ -368,6 +369,7 @@ for f in "$TARGET/home/nas/.ssh"/*; do
     fi
 done
 chmod 600 "$TARGET/home/nas/.ssh/authorized_keys" 2>/dev/null
+chmod 600 "$TARGET/home/nas/.ssh/config" 2>/dev/null
 chown -R 1000:1000 "$TARGET/home/nas/.ssh"
 
 # Create authorized_keys from the public key
@@ -425,11 +427,9 @@ echo "fastestmirror=True" >> /etc/dnf/dnf.conf
 # Set default target to multi-user (no GUI on boot)
 systemctl set-default multi-user.target
 
-# Clone nas-ansible repo (SSH keys already installed by --nochroot)
-ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null
+# Clone nas-ansible repo (SSH keys + config installed by --nochroot)
 rm -rf /opt/nas-ansible
-GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes" \
-    git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || true
+git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || true
 # Ensure vault_pass is in the repo dir even if clone partially succeeded
 if [ -f /root/.vault_pass ] && [ -d /opt/nas-ansible ]; then
     cp /root/.vault_pass /opt/nas-ansible/.vault_pass 2>/dev/null

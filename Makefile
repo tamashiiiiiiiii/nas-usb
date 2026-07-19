@@ -125,6 +125,32 @@ build: ## Extract ISO, inject kickstart + SSH keys, rebuild
 	else \
 		echo "  WARNING: no public keys found for authorized_keys"; \
 	fi
+	@# Select SSH key for github.com — auto-detect if only one, otherwise prompt
+	@PRIVKEYS=$$(grep -rl 'PRIVATE KEY' $(WORK_DIR)/ssh-keys/ 2>/dev/null | sort); \
+	KEYCOUNT=$$(echo "$$PRIVKEYS" | wc -w); \
+	if [ "$$KEYCOUNT" -eq 0 ]; then \
+		echo "  WARNING: no private keys found, skipping SSH config"; \
+	elif [ "$$KEYCOUNT" -eq 1 ]; then \
+		CHOSEN=$$(basename $$PRIVKEYS); \
+		echo "  Auto-selected SSH key for github.com: $$CHOSEN (only key)"; \
+	else \
+		echo ""; \
+		echo "  Multiple SSH private keys found:"; \
+		i=1; for k in $$PRIVKEYS; do \
+			echo "    $$i) $$(basename $$k)"; \
+			i=$$((i+1)); \
+		done; \
+		echo ""; \
+		printf "  Select key for github.com [1-$$KEYCOUNT]: "; \
+		read choice; \
+		CHOSEN=$$(echo "$$PRIVKEYS" | tr ' ' '\n' | sed -n "$${choice}p" | xargs basename); \
+		if [ -z "$$CHOSEN" ]; then echo "  Invalid selection, skipping SSH config"; CHOSEN=""; fi; \
+	fi; \
+	if [ -n "$$CHOSEN" ]; then \
+		printf "Host github.com\n  IdentityFile ~/.ssh/%s\n  IdentitiesOnly yes\n  StrictHostKeyChecking accept-new\n" "$$CHOSEN" \
+			> $(WORK_DIR)/ssh-keys/config; \
+		echo "  Wrote ssh config: github.com -> $$CHOSEN"; \
+	fi
 	@# Copy vault_pass if configured and available
 	@if [ -n "$(VAULT_PASS)" ] && [ -f "$(VAULT_PASS)" ]; then \
 		cp "$(VAULT_PASS)" $(WORK_DIR)/ssh-keys/vault_pass; \
