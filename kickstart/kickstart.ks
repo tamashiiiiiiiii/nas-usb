@@ -346,6 +346,11 @@ chown -R 1000:1000 "$TARGET/home/nas/.ssh" 2>/dev/null
 chmod 600 "$TARGET/root/.ssh/id_rsa" 2>/dev/null
 chmod 644 "$TARGET/root/.ssh"/*.pub 2>/dev/null
 
+# Create authorized_keys from the public key
+cp "$TARGET/root/.ssh/id_rsa.pub" "$TARGET/root/.ssh/authorized_keys" 2>/dev/null
+cp "$TARGET/home/nas/.ssh/id_rsa.pub" "$TARGET/home/nas/.ssh/authorized_keys" 2>/dev/null
+chown 1000:1000 "$TARGET/home/nas/.ssh/authorized_keys" 2>/dev/null
+
 # Copy vault_pass from install media
 VAULT_SRC=""
 if [ -f "$TARGET/root/.ssh/vault_pass" ]; then
