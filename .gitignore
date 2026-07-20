@@ -3,3 +3,5 @@
 *-CHECKSUM
 build/
 iso/
+vm/*.qcow2
+vm/*.iso

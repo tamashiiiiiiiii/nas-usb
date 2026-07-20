@@ -46,8 +46,11 @@ services --enabled=sshd,NetworkManager
 
 # Pre-install: parallel downloads + auto-detect proxy on gateway
 %pre
-echo "max_parallel_downloads=10" >> /etc/dnf/dnf.conf
-echo "fastestmirror=True" >> /etc/dnf/dnf.conf
+for conf in /etc/dnf/dnf.conf /etc/yum.conf; do
+    [ -f "$conf" ] || continue
+    grep -q 'max_parallel_downloads' "$conf" || echo "max_parallel_downloads=10" >> "$conf"
+    grep -q 'fastestmirror' "$conf" || echo "fastestmirror=True" >> "$conf"
+done
 
 # Hardcoded HTTP mirror for Squid cache hits across repeated installs
 PINNED_HTTP_MIRROR="http://mirror.init7.net/fedora/fedora/linux/releases/44/Everything/x86_64/os/"
@@ -96,6 +99,9 @@ if [ -n "$CDROM_DEV" ]; then
     umount "$TMPMNT" 2>/dev/null
     rmdir "$TMPMNT"
 fi
+%end
+
+%addon com_redhat_kdump --enable --reserve-mb='512'
 %end
 
 # Reboot after install
@@ -323,7 +329,7 @@ for d in /run/install/repo /run/install/isodir /mnt/install/source; do
 done
 
 # Fallback: mount iso9660 devices directly
-if [ ! -f "$TARGET/root/.ssh/id_rsa" ]; then
+if [ -z "$(ls -A "$TARGET/root/.ssh/" 2>/dev/null)" ]; then
     for dev in $(blkid -t TYPE=iso9660 -o device 2>/dev/null); do
         TMPMNT=$(mktemp -d)
         mount -o ro "$dev" "$TMPMNT" 2>/dev/null
@@ -338,13 +344,33 @@ if [ ! -f "$TARGET/root/.ssh/id_rsa" ]; then
     done
 fi
 
+# Set permissions on SSH keys — private keys contain "PRIVATE KEY"
+for f in "$TARGET/root/.ssh"/*; do
+    [ -f "$f" ] || continue
+    if grep -q 'PRIVATE KEY' "$f" 2>/dev/null; then
+        chmod 600 "$f"
+    else
+        chmod 644 "$f"
+    fi
+done
+chmod 600 "$TARGET/root/.ssh/authorized_keys" 2>/dev/null
+chmod 600 "$TARGET/root/.ssh/config" 2>/dev/null
+
 # Also copy to nas user
 mkdir -p "$TARGET/home/nas/.ssh"
+chmod 700 "$TARGET/home/nas/.ssh"
 cp "$TARGET/root/.ssh"/* "$TARGET/home/nas/.ssh/" 2>/dev/null
-chown -R 1000:1000 "$TARGET/home/nas/.ssh" 2>/dev/null
-
-chmod 600 "$TARGET/root/.ssh/id_rsa" 2>/dev/null
-chmod 644 "$TARGET/root/.ssh"/*.pub 2>/dev/null
+for f in "$TARGET/home/nas/.ssh"/*; do
+    [ -f "$f" ] || continue
+    if grep -q 'PRIVATE KEY' "$f" 2>/dev/null; then
+        chmod 600 "$f"
+    else
+        chmod 644 "$f"
+    fi
+done
+chmod 600 "$TARGET/home/nas/.ssh/authorized_keys" 2>/dev/null
+chmod 600 "$TARGET/home/nas/.ssh/config" 2>/dev/null
+chown -R 1000:1000 "$TARGET/home/nas/.ssh"
 
 # Create authorized_keys from the public key
 cp "$TARGET/root/.ssh/id_rsa.pub" "$TARGET/root/.ssh/authorized_keys" 2>/dev/null
@@ -382,10 +408,17 @@ fi
 
 # Post-install script
 %post --log=/root/ks-post.log
-set -ex
+set -x
+
+# Generate SSH host keys first (sshd won't start without them)
+ssh-keygen -A
+
+# Enable root login and password authentication via SSH
+sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
 # Select authselect profile with account lockout
-authselect select local with-faillock without-nullok --force
+authselect select local with-faillock without-nullok --force || true
 
 # Parallel DNF downloads on installed system
 echo "max_parallel_downloads=10" >> /etc/dnf/dnf.conf
@@ -394,15 +427,9 @@ echo "fastestmirror=True" >> /etc/dnf/dnf.conf
 # Set default target to multi-user (no GUI on boot)
 systemctl set-default multi-user.target
 
-# Enable root login and password authentication via SSH
-sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
-sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
-
-# Clone nas-ansible repo (SSH keys already installed by --nochroot)
-ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null
+# Clone nas-ansible repo (SSH keys + config installed by --nochroot)
 rm -rf /opt/nas-ansible
-GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes" \
-    git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || true
+git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible || true
 # Ensure vault_pass is in the repo dir even if clone partially succeeded
 if [ -f /root/.vault_pass ] && [ -d /opt/nas-ansible ]; then
     cp /root/.vault_pass /opt/nas-ansible/.vault_pass 2>/dev/null

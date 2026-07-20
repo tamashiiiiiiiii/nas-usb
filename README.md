@@ -6,6 +6,8 @@ make download                  # fetch Fedora 44 Everything netinstall ISO
 make check-iso                 # verify checksum
 make build                     # build custom ISO (embeds ~/.ssh/ keys)
 make flash DEV=/dev/sdX        # write to USB (requires confirmation)
+make vm-create                 # create QEMU/KVM test VM with SATA disks
+make vm-start                  # boot the VM and open SPICE console
 ```
 
 Output: `build/tanoki.iso` — bootable Fedora netinstall that auto-partitions `/dev/sda`, installs 25+ desktop/development groups, and runs post-install scripts.
@@ -17,6 +19,9 @@ Output: `build/tanoki.iso` — bootable Fedora netinstall that auto-partitions `
 nas-usb/
 ├── kickstart/           # Kickstart configuration files
 │   └── kickstart.ks     # Main kickstart (partitioning, packages, post-install)
+├── vm/                  # VM configuration
+│   └── tanoki.xml       # Libvirt VM definition (SATA disks, committed)
+│   └── *.qcow2          # Disk images (gitignored, thin-provisioned)
 ├── iso/                 # Downloaded source ISO (gitignored)
 ├── build/               # Build output (gitignored)
 ├── Makefile             # Build automation
@@ -45,8 +50,14 @@ The build automatically copies `~/.ssh/id_*` and `known_hosts` into the ISO. Dur
 | `make build` | Extract ISO, inject kickstart + SSH keys, patch boot config, rebuild |
 | `make flash DEV=/dev/sdX` | Write ISO to USB with confirmation, sync, and eject |
 | `make eject DEV=/dev/sdX` | Safely eject a USB device |
+| `make iso` | Copy built ISO to `./tanoki.iso` (or `DEST=/path/to/file.iso`) |
 | `make clean` | Remove build artifacts |
 | `make clean-all` | Remove build artifacts and downloaded ISOs |
+| `make vm-create` | Build ISO + create qcow2 disks + define VM in libvirt |
+| `make vm-start` | Start the VM and open SPICE console |
+| `make vm-stop` | Graceful shutdown |
+| `make vm-destroy` | Force stop + undefine VM + delete disk images |
+| `make vm-console` | Reattach SPICE console to running VM |
 
 </details>
 
@@ -210,6 +221,46 @@ After booting from the USB, the installer will automatically wipe `/dev/sda`, pa
 </details>
 
 <details>
+<summary>Testing with QEMU/KVM</summary>
+
+The kickstart references disks by SCSI names (`/dev/sda`, `/dev/sdb`). The VM uses SATA-emulated disks so they appear as `sd*` devices, matching bare-metal behavior.
+
+```bash
+make vm-create        # builds ISO, creates thin-provisioned disks, defines VM
+make vm-start         # boots from ISO and opens SPICE console
+```
+
+**VM spec:** 4 vCPUs, 4 GB RAM, q35 machine, host-passthrough CPU, SPICE graphics, dual NIC.
+
+**Disk layout:**
+
+| Device | Size | Purpose |
+|---|---|---|
+| sda | 200 GB | OS disk (kickstart target) |
+| sdb | 50 GB | bcache SSD cache |
+| sdc–sdg | 20 GB each | RAID6 array (5 disks) |
+| sdh | — | CDROM (install ISO) |
+
+All qcow2 images are thin-provisioned (sparse) — a 200 GB disk starts at ~200 KB on disk.
+
+**Lifecycle:**
+
+```bash
+make vm-stop          # graceful shutdown
+make vm-start         # boot again (from HDD after install)
+make vm-console       # reattach SPICE viewer to running VM
+make vm-destroy       # remove VM + delete all disk images (requires confirmation)
+```
+
+To reinstall from scratch, destroy and recreate:
+
+```bash
+make vm-destroy && make vm-create && make vm-start
+```
+
+</details>
+
+<details>
 <summary>Requirements</summary>
 
 | Requirement | Purpose |
@@ -219,6 +270,9 @@ After booting from the USB, the installer will automatically wipe `/dev/sda`, pa
 | `aria2` | Parallel multi-mirror ISO download |
 | `pykickstart` | Kickstart validation (`ksvalidator`) |
 | `syslinux` | MBR boot image for hybrid ISO |
+| `qemu-kvm` | VM hypervisor (for `make vm-*` targets) |
+| `libvirt` | VM management (virsh) |
+| `virt-viewer` | SPICE console viewer |
 | Network access | Installer fetches packages from Fedora mirrors |
 
 All tools are auto-installed by `make setup`.
