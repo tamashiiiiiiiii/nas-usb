@@ -22,7 +22,7 @@ selinux --enforcing
 firewall --enabled --service=ssh
 
 # Bootloader
-bootloader --location=mbr --boot-drive=sda
+bootloader --location=mbr --boot-drive=sda --append="crashkernel=512M"
 
 # Disk partitioning — wipe sda completely
 zerombr
