@@ -22,7 +22,7 @@ selinux --enforcing
 firewall --enabled --service=ssh
 
 # Bootloader
-bootloader --location=mbr --boot-drive=sda --append="crashkernel=512M"
+bootloader --location=mbr --boot-drive=sda
 
 # Disk partitioning — wipe sda completely
 zerombr
@@ -372,9 +372,11 @@ chmod 600 "$TARGET/home/nas/.ssh/authorized_keys" 2>/dev/null
 chmod 600 "$TARGET/home/nas/.ssh/config" 2>/dev/null
 chown -R 1000:1000 "$TARGET/home/nas/.ssh"
 
-# Create authorized_keys from the public key
-cp "$TARGET/root/.ssh/id_rsa.pub" "$TARGET/root/.ssh/authorized_keys" 2>/dev/null
-cp "$TARGET/home/nas/.ssh/id_rsa.pub" "$TARGET/home/nas/.ssh/authorized_keys" 2>/dev/null
+# Create authorized_keys from all public keys
+cat "$TARGET/root/.ssh"/*.pub 2>/dev/null > "$TARGET/root/.ssh/authorized_keys" || true
+cp "$TARGET/root/.ssh/authorized_keys" "$TARGET/home/nas/.ssh/authorized_keys" 2>/dev/null
+chmod 600 "$TARGET/root/.ssh/authorized_keys" 2>/dev/null
+chmod 600 "$TARGET/home/nas/.ssh/authorized_keys" 2>/dev/null
 chown 1000:1000 "$TARGET/home/nas/.ssh/authorized_keys" 2>/dev/null
 
 # Copy vault_pass from install media
