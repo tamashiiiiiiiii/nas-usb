@@ -34,8 +34,7 @@ part /boot/efi  --fstype=efi  --size=512   --ondisk=sda
 part /boot      --fstype=xfs  --size=1946  --ondisk=sda
 part /          --fstype=xfs  --size=25000 --ondisk=sda
 part /var       --fstype=xfs  --size=50000 --ondisk=sda
-part /home      --fstype=xfs  --size=2000 --ondisk=sda
-part /mnt/downloads --fstype=xfs  --size=92262 --grow --ondisk=sda
+part /home      --fstype=xfs  --size=2000 --grow --ondisk=sda
 
 # Default boot target — multi-user (no GUI on boot)
 skipx
@@ -179,7 +178,6 @@ skopeo
 mdadm
 lvm2
 xfsprogs
-bcache-tools
 ledmon
 hdparm
 lsscsi
@@ -438,18 +436,19 @@ if [ -f /root/.vault_pass ] && [ -d /opt/nas-ansible ]; then
     chmod 600 /opt/nas-ansible/.vault_pass 2>/dev/null
 fi
 
-# Format /dev/sdb as bcache cache device (only if it's an SSD)
+# Format /dev/sdb as dedicated XFS downloads drive (only if it exists)
 if [ -b /dev/sdb ]; then
-    ROTATIONAL=$(cat /sys/block/sdb/queue/rotational 2>/dev/null || echo "1")
-    if [ "$ROTATIONAL" = "0" ]; then
-        echo ">>> Formatting /dev/sdb as bcache cache device..."
-        wipefs -a /dev/sdb 2>/dev/null || true
-        make-bcache -C /dev/sdb 2>/dev/null || true
-    else
-        echo "WARNING: /dev/sdb is an HDD (rotational), skipping bcache cache setup"
+    echo ">>> Formatting /dev/sdb as downloads drive (XFS)..."
+    wipefs -a /dev/sdb 2>/dev/null || true
+    mkfs.xfs -f /dev/sdb 2>/dev/null || true
+    mkdir -p /mnt/downloads
+    if ! grep -q '/dev/sdb' /etc/fstab 2>/dev/null; then
+        echo '/dev/sdb /mnt/downloads xfs defaults,noatime,nodiratime,nodev,nosuid 0 2' >> /etc/fstab
     fi
+    mount /mnt/downloads 2>/dev/null || true
+    chown 1000:1000 /mnt/downloads
 else
-    echo "WARNING: /dev/sdb not found — skipping bcache cache setup"
+    echo "WARNING: /dev/sdb not found — downloads will fall back to /phy1/downloads"
 fi
 
 # Install AI coding tools (non-interactive, skip failures)

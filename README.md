@@ -71,10 +71,10 @@ The installer wipes `/dev/sda` completely and creates:
 | sda1 | 1 MB | biosboot | — | BIOS boot (GPT compatibility) |
 | sda2 | 512 MB | vfat | /boot/efi | EFI System Partition |
 | sda3 | 1.9 GB | xfs | /boot | Boot partition |
-| sda4 | 55.9 GB | xfs | / | Root filesystem |
-| sda5 | 90.1 GB | xfs | /downloads | Downloads / media storage |
+| sda4 | 25 GB | xfs | / | Root filesystem |
+| sda5 | ~54 GB | xfs | /home | Home (grows to fill remaining space) |
 
-The separate SSD (`/dev/sdb`) is formatted as a **bcache cache device** (writeback) in `%post`.
+The separate SSD (`/dev/sdb`) is formatted as a **dedicated XFS downloads drive** mounted at `/mnt/downloads` in `%post`.
 
 </details>
 
@@ -134,7 +134,7 @@ The separate SSD (`/dev/sdb`) is formatted as a **bcache cache device** (writeba
 | Core tools | vim, git, htop, tmux, curl, wget, gcc, make, python3-pip, nodejs, npm, openssl, dbus, rsync |
 | Ansible | ansible-core, sshpass, ansible-* (via dnf in %post) |
 | Containers | podman, podman-compose, podman-docker, containernetworking-plugins |
-| Storage | mdadm, lvm2, xfsprogs, bcache-tools, ledmon, hdparm, lsscsi, nvme-cli, parted, gdisk |
+| Storage | mdadm, lvm2, xfsprogs, ledmon, hdparm, lsscsi, nvme-cli, parted, gdisk |
 | Network | samba, samba-client, netatalk, postfix, unbound, dnsmasq, avahi, bind-utils, vsftpd, nfs-utils |
 | Security | fail2ban-server, clamav, clamd, policycoreutils-python-utils, authselect, audit, lynis, certbot |
 | Monitoring | pcp, sysstat, smartmontools, cockpit-ws + 12 cockpit plugins |
@@ -155,7 +155,7 @@ The `%post` section runs after installation:
 3. **Copy SSH keys** from installer media to `/root/.ssh/` (mode 600)
 4. **Install ansible-*** — `dnf install -y ansible-*`
 5. **Clone nas-ansible** — `git clone git@github.com:tamashiiiiiiiii/nas-ansible.git /opt/nas-ansible` (falls back to HTTPS)
-6. **Format separate SSD as bcache cache** — wipes and formats `/dev/sdb` as bcache cache device (writeback)
+6. **Format separate SSD as downloads drive** — wipes and formats `/dev/sdb` as XFS, mounts at `/mnt/downloads`
 7. **Install AI coding tools:**
    - [Claude Code](https://claude.ai) — Anthropic's CLI coding assistant (`npm i -g @anthropic-ai/claude-code`)
    - [OpenCode](https://opencode.ai) — Open-source coding agent (`curl -fsSL https://opencode.ai/install | bash`)
@@ -237,7 +237,7 @@ make vm-start         # boots from ISO and opens SPICE console
 | Device | Size | Purpose |
 |---|---|---|
 | sda | 200 GB | OS disk (kickstart target) |
-| sdb | 50 GB | bcache SSD cache |
+| sdb | 50 GB | Downloads drive (XFS) |
 | sdc–sdg | 20 GB each | RAID6 array (5 disks) |
 | sdh | — | CDROM (install ISO) |
 
@@ -277,7 +277,7 @@ make vm-destroy && make vm-create && make vm-start
 
 All tools are auto-installed by `make setup`.
 
-> **Note:** The NAS uses a separate SSD (`/dev/sdb`) as a bcache writeback cache device — **not** a partition on sda. The installer formats `/dev/sdb` directly in `%post`. Ensure the SSD is connected before booting the installer.
+> **Note:** The NAS uses a separate SSD (`/dev/sdb`) as a dedicated XFS downloads drive mounted at `/mnt/downloads` — **not** a partition on sda. The installer formats `/dev/sdb` directly in `%post`. Ensure the SSD is connected before booting the installer.
 
 </details>
 

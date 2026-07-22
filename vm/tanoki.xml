@@ -41,7 +41,7 @@
       <target dev='sda' bus='sata'/>
     </disk>
 
-    <!-- sdb: bcache SSD cache (50G) -->
+    <!-- sdb: dedicated downloads drive (50G) -->
     <disk type='file' device='disk'>
       <driver name='qemu' type='qcow2' discard='unmap'/>
       <source file='@@VM_DIR@@/tanoki-sdb.qcow2'/>
