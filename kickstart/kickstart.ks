@@ -162,7 +162,6 @@ dmidecode
 
 # Ansible (from Makefile bootstrap)
 ansible-core
-ansible-*
 sshpass
 
 # Container runtime (from roles/podman)
@@ -241,7 +240,6 @@ certbot
 
 # Monitoring (from roles/pcp, roles/sysstat, roles/smartmontools, roles/cockpit)
 pcp
-pcp-system-tools
 sysstat
 smartmontools
 iotop
